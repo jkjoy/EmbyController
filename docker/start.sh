@@ -1,10 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # 确保目录存在并设置正确权限
 mkdir -p /var/www/html/runtime
-chown -R www-data:www-data /var/www/html
-chmod -R 755 /var/www/html/runtime
-
+chmod -R 777 /var/www/html/
 # 启动PHP-FPM
 php-fpm -D
 
