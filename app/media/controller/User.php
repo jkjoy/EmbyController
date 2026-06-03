@@ -773,8 +773,7 @@ class User extends BaseController
                 }
 
                 if ($flag) {
-                    $userInfoArray['lastSignTime'] = date('Y-m-d');
-                    $user->userInfo = json_encode($userInfoArray);
+                    $userId = Session::get('r_user')->id;
                     $sysConfigModel = new SysConfigModel();
                     $signInMaxAmount = $sysConfigModel->where('key', 'signInMaxAmount')->find();
                     if ($signInMaxAmount) {
@@ -793,22 +792,42 @@ class User extends BaseController
                     } else {
                         $score = 0;
                     }
-                    $user->rCoin = $user->rCoin + $score;
-                    $user->save();
 
-                    $user = $userModel->where('id', Session::get('r_user')->id)->find();
+                    Db::startTrans();
+                    try {
+                        // 悲观锁串行化，并在锁内统一校验“今日是否已签到”，防止并发或不同判定分支重复领取
+                        $lockedUser = (new UserModel())->where('id', $userId)->lock(true)->find();
+                        $lockedInfo = json_decode(json_encode($lockedUser['userInfo']), true);
+                        if (isset($lockedInfo['lastSignTime']) && $lockedInfo['lastSignTime'] == date('Y-m-d')) {
+                            Db::rollback();
+                            return json(['code' => 400, 'message' => '今日已签到，请明天再来']);
+                        }
+
+                        $lockedInfo['lastSignTime'] = date('Y-m-d');
+                        $lockedUser->userInfo = json_encode($lockedInfo);
+                        $lockedUser->rCoin = $lockedUser->rCoin + $score;
+                        $lockedUser->save();
+
+                        $financeRecordModel = new FinanceRecordModel();
+                        $financeRecordModel->save([
+                            'userId' => $userId,
+                            'action' => 4,
+                            'count' => $score,
+                            'recordInfo' => [
+                                'message' => '签到获取' . $score . 'R币',
+                            ]
+                        ]);
+                        Db::commit();
+                    } catch (\Exception $e) {
+                        Db::rollback();
+                        return json(['code' => 400, 'message' => '签到失败，请稍后重试']);
+                    }
+
+                    // 更新Session
+                    $user = (new UserModel())->where('id', $userId)->find();
                     Session::set('r_user', $user);
 
-                    $financeRecordModel = new FinanceRecordModel();
-                    $financeRecordModel->save([
-                        'userId' => Session::get('r_user')->id,
-                        'action' => 4,
-                        'count' => $score,
-                        'recordInfo' => [
-                            'message' => '签到获取' . $score . 'R币',
-                        ]
-                    ]);
-                    sendTGMessage(Session::get('r_user')->id,"签到成功！今天签到获取" . $score . "R币");
+                    sendTGMessage($userId, "签到成功！今天签到获取" . $score . "R币");
 
                     return json(['code' => 200, 'message' => '签到成功！今天签到获取' . $score . 'R币']);
                 } else {

@@ -9,6 +9,7 @@ use think\facade\Cache;
 use think\facade\Request;
 use think\facade\View;
 use think\facade\Config;
+use think\facade\Db;
 
 class Account extends BaseController
 {
@@ -63,21 +64,38 @@ class Account extends BaseController
             }
 
             if ($flag) {
-                $userInfoArray['lastSignTime'] = date('Y-m-d');
-                $user->userInfo = json_encode($userInfoArray);
                 $score = mt_rand(10, 30) / 100;
-                $user->rCoin = $user->rCoin + $score;
-                $user->save();
 
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $userId,
-                    'action' => 4,
-                    'count' => $score,
-                    'recordInfo' => [
-                        'message' => '签到获取' . $score . 'R币',
-                    ]
-                ]);
+                Db::startTrans();
+                try {
+                    // 悲观锁串行化，并在锁内统一校验“今日是否已签到”，防止并发或不同判定分支重复领取
+                    $lockedUser = (new UserModel())->where('id', $userId)->lock(true)->find();
+                    $lockedInfo = json_decode(json_encode($lockedUser['userInfo']), true);
+                    if (isset($lockedInfo['lastSignTime']) && $lockedInfo['lastSignTime'] == date('Y-m-d')) {
+                        Db::rollback();
+                        return json(['code' => 400, 'message' => '您今日已签到']);
+                    }
+
+                    $lockedInfo['lastSignTime'] = date('Y-m-d');
+                    $lockedUser->userInfo = json_encode($lockedInfo);
+                    $lockedUser->rCoin = $lockedUser->rCoin + $score;
+                    $lockedUser->save();
+
+                    $financeRecordModel = new FinanceRecordModel();
+                    $financeRecordModel->save([
+                        'userId' => $userId,
+                        'action' => 4,
+                        'count' => $score,
+                        'recordInfo' => [
+                            'message' => '签到获取' . $score . 'R币',
+                        ]
+                    ]);
+                    Db::commit();
+                } catch (\Exception $e) {
+                    Db::rollback();
+                    return json(['code' => 400, 'message' => '签到失败，请稍后重试']);
+                }
+
                 sendTGMessage($userId, "签到成功！今日签到获取" . $score . "R币");
                 return json(['code' => 200, 'message' => '签到成功！今日签到获取' . $score . 'R币']);
             } else {

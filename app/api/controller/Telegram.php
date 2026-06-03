@@ -95,7 +95,12 @@ class Telegram extends BaseController
         } else {
             $telegram = new Api($token);
             $telegram->removeWebhook();
-            $telegram->setWebhook(['url' => $weburl . '/api/telegram/listenWebHook']);
+            $params = ['url' => $weburl . '/api/telegram/listenWebHook'];
+            $secret = Config::get('telegram.webhookSecret');
+            if ($secret) {
+                $params['secret_token'] = $secret;
+            }
+            $telegram->setWebhook($params);
             return 'success';
         }
     }
@@ -105,6 +110,11 @@ class Telegram extends BaseController
         $token = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
         if ($token == 'notgbot') {
             return '请先配置Telegram机器人';
+        }
+        // 校验请求来源：Telegram 在每次回调请求头回传 setWebhook 时设置的 secret_token，比对失败则丢弃，防止伪造 update 冒充任意用户执行资金命令
+        $webhookSecret = Config::get('telegram.webhookSecret');
+        if ($webhookSecret && !hash_equals((string)$webhookSecret, (string)Request::header('x-telegram-bot-api-secret-token', ''))) {
+            return json(['ok' => true]);
         }
         try {
             $telegram = new Api($token);
@@ -1298,10 +1308,12 @@ class Telegram extends BaseController
             // 更新投注金额
             Db::startTrans();
             try {
-                // 扣除余额
-                Db::name('user')->where('id', $user['userId'])->update([
-                    'rCoin' => $user['rCoin'] - $amount
-                ]);
+                // 原子扣除余额（带余额校验），防止并发透支
+                $deducted = Db::name('user')->where('id', $user['userId'])->where('rCoin', '>=', $amount)->dec('rCoin', $amount)->update();
+                if (!$deducted) {
+                    Db::rollback();
+                    return '余额不足';
+                }
 
                 // 新增操作记录
                 Db::name('finance_record')->save([
@@ -1364,10 +1376,12 @@ class Telegram extends BaseController
         // 首次投注的逻辑保持不变
         Db::startTrans();
         try {
-            // 扣除余额
-            Db::name('user')->where('id', $user['userId'])->update([
-                'rCoin' => $user['rCoin'] - $amount
-            ]);
+            // 原子扣除余额（带余额校验），防止并发透支
+            $deducted = Db::name('user')->where('id', $user['userId'])->where('rCoin', '>=', $amount)->dec('rCoin', $amount)->update();
+            if (!$deducted) {
+                Db::rollback();
+                return '余额不足';
+            }
 
             // 新增操作记录
             Db::name('finance_record')->save([
@@ -1450,7 +1464,7 @@ class Telegram extends BaseController
             return '最低转账金额为1R';
         }
 
-        // 计算手续费(1%)
+        // 计算手续费(2%)
         $fee = $amount * 0.02;
         $totalDeduct = $amount + $fee;
 
@@ -1513,15 +1527,15 @@ class Telegram extends BaseController
         // 执行转账
         Db::startTrans();
         try {
-            // 扣除发送方余额（包含手续费）
-            Db::name('user')->where('id', $fromUser['userId'])->update([
-                'rCoin' => $fromUser['rCoin'] - $totalDeduct
-            ]);
+            // 原子扣除发送方余额（含手续费，带余额校验），防止并发透支/重复转账
+            $deducted = Db::name('user')->where('id', $fromUser['userId'])->where('rCoin', '>=', $totalDeduct)->dec('rCoin', $totalDeduct)->update();
+            if (!$deducted) {
+                Db::rollback();
+                return '余额不足（需要包含2%手续费）';
+            }
 
-            // 增加接收方余额
-            Db::name('user')->where('id', $toUser['userId'])->update([
-                'rCoin' => $toUser['rCoin'] + $amount
-            ]);
+            // 原子增加接收方余额（避免快照覆盖导致丢币）
+            Db::name('user')->where('id', $toUser['userId'])->inc('rCoin', $amount)->update();
 
             // 记录发送方财务记录
             Db::name('finance_record')->insert([

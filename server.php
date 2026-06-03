@@ -310,16 +310,14 @@ $ws->onWorkerStart = function($worker) {
                     file_put_contents($logFile, $message, FILE_APPEND);
                 }
             } else if ($workerId === 2) { // 使用另一个worker处理赌博开奖
-                Timer::add(10, function() {
-                    try {
-                        checkBetResult();
-                    } catch (\Exception $e) {
-                        $logFile = __DIR__ . '/runtime/log/bet_error.log';
-                        $time = date('Y-m-d H:i:s');
-                        $message = "[$time] 定时检查赌博错误: " . $e->getMessage() . "\n";
-                        file_put_contents($logFile, $message, FILE_APPEND);
-                    }
-                });
+                try {
+                    checkBetResult();
+                } catch (\Exception $e) {
+                    $logFile = __DIR__ . '/runtime/log/bet_error.log';
+                    $time = date('Y-m-d H:i:s');
+                    $message = "[$time] 定时检查赌博错误: " . $e->getMessage() . "\n";
+                    file_put_contents($logFile, $message, FILE_APPEND);
+                }
             }
         });
 
@@ -695,10 +693,12 @@ function checkAllExpiredUsers() {
 function processAutoRenewal($embyUser, $user) {
     Db::startTrans();
     try {
-        // 扣除用户余额
-        Db::name('user')->where('id', $user['id'])->update([
-            'rCoin' => $user['rCoin'] - 10
-        ]);
+        // 原子扣费，避免与用户其他余额变动（充值/消费）并发时丢失更新
+        $deducted = Db::name('user')->where('id', $user['id'])->where('rCoin', '>=', 10)->dec('rCoin', 10)->update();
+        if (!$deducted) {
+            Db::rollback();
+            return;
+        }
 
         // 更新到期时间
         $newExpireTime = strtotime($embyUser['activateTo']) + 2592000; // 30天
@@ -799,14 +799,12 @@ function checkLotteryDraw() {
             sleep($waitTime);
 
             file_put_contents($logFile, "[$lotteryTime] 锁定抽奖 #{$lottery['id']} 以进行开奖\n", FILE_APPEND);
-            $lottery = $lotteryModel->where('id', $lottery['id'])->find();
-            // 检查是否已经锁定
-            if ($lottery['status'] == 3) {
-                file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 已经被锁定，跳过\n", FILE_APPEND);
+            // 原子锁定抽奖（仅当仍为进行中），防止并发/重入重复开奖
+            $claimed = $lotteryModel->where('id', $lottery['id'])->where('status', 1)->update(['status' => 3]);
+            if (!$claimed) {
+                file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 已被锁定或处理，跳过\n", FILE_APPEND);
                 continue;
             }
-            // 锁定抽奖
-            $lotteryModel->where('id', $lottery['id'])->update(['status' => 3]);
 
             file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 已锁定\n", FILE_APPEND);
 
@@ -1126,11 +1124,15 @@ function checkBetResult() {
 
             Db::startTrans();
 
-            // 更新赌局状态
-            $betModel->where('id', $bet['id'])->update([
+            // 原子锁定赌局（仅当仍为进行中），防止并发/重入导致重复结算与重复派奖
+            $claimed = $betModel->where('id', $bet['id'])->where('status', 1)->update([
                 'status' => 2,
                 'result' => $result
             ]);
+            if (!$claimed) {
+                Db::rollback();
+                continue;
+            }
 
             // 处理参与者
             $participants = Db::name('bet_participant')
@@ -1161,13 +1163,8 @@ function checkBetResult() {
                         0, 2);
                     $totalWinAmount += $winAmount;
 
-                    // 获取用户余额
-                    $mount = Db::name('user')->where('id', $participant['userId'])->value('rCoin');
-
-                    // 更新用户余额
-                    Db::name('user')->where('id', $participant['userId'])->update([
-                        'rCoin' => round($mount + $winAmount, 2)
-                    ]);
+                    // 原子加币派奖，避免并发读改写丢失更新
+                    Db::name('user')->where('id', $participant['userId'])->inc('rCoin', $winAmount)->update();
 
                     // 更新参与记录
                     Db::name('bet_participant')

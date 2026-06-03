@@ -13,6 +13,7 @@ use app\media\model\UserModel as UserModel;
 use think\facade\View;
 use think\facade\Config;
 use think\facade\Cache;
+use think\facade\Db;
 use app\media\model\ExchangeCodeModel;
 
 class Admin extends BaseController
@@ -315,33 +316,44 @@ class Admin extends BaseController
             if (!$request) {
                 return json(['code' => 400, 'message' => '工单不存在']);
             }
+            // 校验奖励金额为正数，避免负数扣币或非法输入
+            if (!is_numeric($reward) || $reward <= 0) {
+                return json(['code' => 400, 'message' => '请输入正确的奖励金额']);
+            }
+            $reward = round((float)$reward, 2);
 
             if ($request->type > 0) {
-                $message = json_decode($request['message'], true);
+                $message = json_decode($request['message'], true) ?: [];
                 $message[] = [
                     'role' => 'system',
                     'time' => date('Y-m-d H:i:s'),
                     'content' => '管理员(#' . Session::get('r_user')->id . ')奖励给您了' . $reward . 'R币',
                 ];
-                $request->message = json_encode($message);
-                $request->save();
 
+                Db::startTrans();
+                try {
+                    $request->message = json_encode($message);
+                    $request->save();
 
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $request->requestUserId,
-                    'action' => 8,
-                    'count' => $reward,
-                    'recordInfo' => [
-                        'message' => '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . 'R币',
-                    ]
-                ]);
+                    $financeRecordModel = new FinanceRecordModel();
+                    $financeRecordModel->save([
+                        'userId' => $request->requestUserId,
+                        'action' => 8,
+                        'count' => $reward,
+                        'recordInfo' => [
+                            'message' => '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . 'R币',
+                        ]
+                    ]);
 
+                    // 原子加币，避免并发读改写丢失更新
+                    (new UserModel())->where('id', $request->requestUserId)->inc('rCoin', $reward)->update();
 
-                $userModel = new UserModel();
-                $user = $userModel->where('id', $request->requestUserId)->find();
-                $user->rCoin = $user->rCoin + $reward;
-                $user->save();
+                    Db::commit();
+                } catch (\Exception $e) {
+                    Db::rollback();
+                    return json(['code' => 400, 'message' => '奖励失败，请稍后重试']);
+                }
+
                 sendStationMessage($request->requestUserId, '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . 'R币');
                 return json(['code' => 200, 'message' => '奖励成功', 'messageRecord' => json_encode($message)]);
             } else {
