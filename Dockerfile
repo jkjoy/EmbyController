@@ -12,7 +12,7 @@ RUN apk add --no-cache \
     gcc \
     g++ \
     make \
-    # PHP扩展依赖 
+    # PHP扩展依赖
     libpng-dev \
     libzip-dev \
     libjpeg-turbo-dev \
@@ -43,22 +43,32 @@ RUN { \
         echo 'opcache.revalidate_freq=60'; \
         echo 'opcache.fast_shutdown=1'; \
         echo 'opcache.enable_cli=1'; \
+        # 镜像内代码不可变，关闭时间戳校验，避免每次请求 stat() 文件，提升性能
+        echo 'opcache.validate_timestamps=0'; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini
 
-# 安装Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
- 
-# 复制项目文件
-COPY . /app
-# 在 builder 阶段
-RUN composer require topthink/think-migration
-# 优化Composer依赖
+# 安装Composer（固定大版本，保证构建可复现）
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# 先只复制依赖清单，单独成层：只要 composer.json/lock 不变，
+# 后续源码改动不会让依赖层缓存失效，避免每次构建都重新下载全部依赖。
+# composer.lock* 中的 * 让 lock 文件“可选”——存在则用它保证可复现，不存在也不报错。
+COPY composer.json composer.lock* /app/
+
+# 安装依赖：此时源码尚未拷入，先跳过脚本与 autoloader 生成
 RUN composer install \
     --no-dev \
     --no-interaction \
-    --optimize-autoloader \
     --no-scripts \
+    --no-autoloader \
     --prefer-dist
+
+# 复制项目源码
+COPY . /app
+
+# 生成优化后的 autoloader，并触发 post-autoload-dump
+# （think service:discover + vendor:publish，须在源码就位后执行）
+RUN composer dump-autoload --optimize --no-dev
 
 # 调整PHP配置
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
@@ -69,11 +79,12 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
         -e 's/post_max_size = 8M/post_max_size = 20M/g' \
         "$PHP_INI_DIR/php.ini"
 
-# 准备运行时目录
+# 准备运行时目录，并清理不需要打进镜像的内容
+# （/app/docker 里的 nginx.conf/start.sh/www.conf 已单独 COPY 到系统目录，源码副本无需保留）
 RUN mkdir -p /app/runtime/log/ \
+    && rm -rf /app/docker \
     && chmod -R 755 /app \
-    && chown -R www-data:www-data /app \
-    && rm -rf /docker/*
+    && chown -R www-data:www-data /app
 
 # 最终镜像
 FROM php:8.3-fpm-alpine
@@ -89,12 +100,11 @@ RUN apk add --no-cache \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone
 
-# 复制必要文件
+# 复制必要文件（运行时无需 composer，故不再复制）
 COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
 COPY --from=builder /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY --from=builder /usr/local/etc/php/php.ini /usr/local/etc/php/php.ini
 COPY --from=builder /app /app
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # 复制配置文件
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf

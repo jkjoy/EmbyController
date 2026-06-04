@@ -7,8 +7,8 @@ echo "[$(date)] Starting initialization..."
 echo "Setting up permissions..."
 mkdir -p /app/runtime/log/
 
-# 更改除 /app/.env 的文件权限
-find /app -path /app/.env -prune -o -exec chown www-data:www-data {} \;
+# 更改除 /app/.env 外的文件权限（批量 chown，避免每个文件 fork 一次进程拖慢启动）
+find /app -path /app/.env -prune -o -print0 | xargs -0 chown www-data:www-data
 
 # 读取 .env 文件并导出环境变量
 if [ -f /app/.env ]; then
