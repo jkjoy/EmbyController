@@ -5,7 +5,7 @@ return [
     ],
 
     'listen'    => [
-        'AppInit'  => [],
+        'AppInit'  => [\app\listener\InitSiteConfig::class],
         'HttpRun'  => [],
         'HttpEnd'  => [],
         'LogLevel' => [],

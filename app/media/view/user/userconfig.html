@@ -51,7 +51,7 @@
 <!-- 欢迎信息 -->
 <div class="space-y-2 mb-4">
     <p class="text-xl">您好，<?php echo isset($user->nickName)?$user->nickName:$user->userName ?></p>
-    <p>欢迎登陆<?php echo config('app.app_name'); ?>影视管理站</p>
+    <p>欢迎登陆<?php echo config('app.app_name'); ?><?php echo config('app.app_subtitle'); ?></p>
 </div>
 
 <!-- 浏览器信息 -->

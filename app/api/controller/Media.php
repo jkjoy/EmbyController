@@ -102,6 +102,8 @@ class Media extends BaseController
                                         $ch = curl_init($url);
                                         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                                        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                                         curl_setopt($ch, CURLOPT_HTTPHEADER, [
                                             'accept: */*',
                                             'Content-Type: application/json'
@@ -235,6 +237,8 @@ class Media extends BaseController
                                         $ch = curl_init($url);
                                         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                                        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                                         curl_setopt($ch, CURLOPT_HTTPHEADER, [
                                             'accept: */*',
                                             'Content-Type: application/json'

@@ -136,6 +136,7 @@ function getPaySign($param){
 function getHttpResponse($url, $post = false, $timeout = 10){
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     $httpheader[] = "Accept: */*";
@@ -187,7 +188,6 @@ function xfyun($inComeMessage){
             $response = $client->receive();
             $resp = json_decode($response,true);
             $code = $resp["header"]["code"];
-            echo "从服务器接收到的数据： " . $response;
             if(0 == $code){
                 $status = $resp["header"]["status"];
                 if($status != 2){
@@ -196,13 +196,9 @@ function xfyun($inComeMessage){
                 }else{
                     $content = $resp['payload']['choices']['text'][0]['content'];
                     $answer .= $content;
-                    $total_tokens = $resp['payload']['usage']['text']['total_tokens'];
-                    print("\n本次消耗token用量：\n");
-                    print($total_tokens);
                     break;
                 }
             }else{
-                echo "服务返回报错".$response;
                 break;
             }
         }
@@ -231,8 +227,6 @@ function http_request($url, $post_data, $headers) {
     );
     $context = stream_context_create($options);
     $result = file_get_contents($url, false, $context);
-
-    echo $result;
 
     return "success";
 }
@@ -298,12 +292,9 @@ function assembleAuthUrl($method, $addr, $apiKey, $apiSecret) {
 
     // 将签名字符串拼接成一个字符串
     $sgin = implode("\n", $signString);
-    print( $sgin);
 
     // 对签名字符串进行HMAC-SHA256加密，得到签名结果
     $sha = hash_hmac('sha256', $sgin, $apiSecret,true);
-    print("signature_sha:\n");
-    print($sha);
     $signature_sha_base64 = base64_encode($sha);
 
     // 将API密钥、算法、头部信息和签名结果拼接成一个授权URL
@@ -352,6 +343,8 @@ function judgeCloudFlare($type = 'noninteractive', $cfToken = ''){
     ];
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $vdata);
     $output = curl_exec($ch);
@@ -392,7 +385,7 @@ function sendStationMessage($id, $message)
     ]);
 }
 
-function getLocation($ip = null)
+function getLocation($ip = null, $retry = 0)
 {
     if ($ip == null) {
         $ip = getRealIp();
@@ -403,13 +396,19 @@ function getLocation($ip = null)
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $output = json_decode(curl_exec($ch), true);
     curl_close($ch);
 
 
     if (!isset($output['result']) || $output['status'] != 0 || !isset($output['message']) || $output['message'] != 'Success') {
-        sleep(2);
-        return getLocation($ip);
+        // 最多重试 3 次，避免第三方接口异常时无限递归拖死请求
+        if ($retry >= 3) {
+            return null;
+        }
+        sleep(1);
+        return getLocation($ip, $retry + 1);
     } else {
         return $output['result']['ad_info'];
     }
@@ -535,4 +534,18 @@ function getReplyFromAI($type, $inComeMessage)
     }
 
     return "所有AI服务均不可用";
+}
+
+/**
+ * 拼接网站标题（网站名称与副标题均可在后台「系统设置」中配置，见 app\listener\InitSiteConfig）。
+ * 格式：[页面名 - ]副标题-网站名称；副标题为空时省略副标题与连接符。
+ * @param string $page 可选页面名（如"登录"、"注册"）
+ * @return string
+ */
+function siteTitle($page = '')
+{
+    $name     = config('app.app_name');
+    $subtitle = config('app.app_subtitle');
+    $base     = ($subtitle !== '' && $subtitle !== null) ? ($subtitle . '-' . $name) : $name;
+    return $page !== '' ? ($page . ' - ' . $base) : $base;
 }

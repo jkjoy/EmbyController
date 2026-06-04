@@ -92,6 +92,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json'
             ]);
@@ -130,6 +132,8 @@ class Server extends BaseController
                     $ch = curl_init($url);
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'accept: application/json',
                         'Content-Type: application/json'
@@ -179,6 +183,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json',
                 'Content-Type: application/json'
@@ -203,6 +209,8 @@ class Server extends BaseController
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'accept: */*',
                     'Content-Type: application/json'
@@ -240,6 +248,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: */*'
             ]);
@@ -282,6 +292,8 @@ class Server extends BaseController
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'accept: application/json'
                 ]);
@@ -408,6 +420,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json',
                 'Content-Type: application/json'
@@ -439,6 +453,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json'
             ]);
@@ -462,6 +478,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json'
             ]);
@@ -471,9 +489,6 @@ class Server extends BaseController
         } else {
             $viewList = null;
         }
-        echo $response;
-//        echo json_encode($viewList);
-        die();
         View::assign('viewList', $viewList);
         return view();
     }
@@ -543,6 +558,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: */*',
                 'Content-Type: application/json'
@@ -631,6 +648,8 @@ class Server extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: */*',
                 'Content-Type: application/json'
@@ -1025,6 +1044,8 @@ class Server extends BaseController
                     $ch = curl_init($url);
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'accept: */*'
                     ]);
@@ -1364,6 +1385,8 @@ class Server extends BaseController
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'accept: application/json'
         ]);
@@ -1383,6 +1406,11 @@ class Server extends BaseController
     {
         if (!Session::has('r_user')) {
             return json(['code' => 400, 'message' => '请先登录']);
+        }
+
+        // 客户端白名单为全局访问控制配置，仅管理员可修改
+        if (Session::get('r_user')->authority != 0) {
+            return json(['code' => 403, 'message' => '无权限']);
         }
 
         if (Request::isPost()) {
@@ -1429,6 +1457,11 @@ class Server extends BaseController
             return json(['code' => 400, 'message' => '请先登录']);
         }
 
+        // 客户端黑名单为全局访问控制配置，仅管理员可修改
+        if (Session::get('r_user')->authority != 0) {
+            return json(['code' => 403, 'message' => '无权限']);
+        }
+
         if (Request::isPost()) {
             $data = Request::post();
             $deviceId = $data['deviceId'];
@@ -1471,6 +1504,11 @@ class Server extends BaseController
     {
         if (!Session::has('r_user')) {
             return json(['code' => 400, 'message' => '请先登录']);
+        }
+
+        // 客户端名单为全局访问控制配置，仅管理员可修改
+        if (Session::get('r_user')->authority != 0) {
+            return json(['code' => 403, 'message' => '无权限']);
         }
 
         if (Request::isPost()) {

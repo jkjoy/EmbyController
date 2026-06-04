@@ -6,6 +6,33 @@
         <h2 class="text-xl font-semibold">站点设置</h2>
         <div class="space-y-4">
             <div class="space-y-2">
+                <label class="block text-white-400 mb-1">网站标题</label>
+                <input type="text"
+                       name="siteName"
+                       value="{$settings.siteName??'算艺轩'}"
+                       class="w-full bg-white/10 rounded-lg px-4 py-2">
+                <p class="text-sm text-gray-400">显示在浏览器标题栏和站点页面上的网站名称</p>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-white-400 mb-1">网站副标题</label>
+                <input type="text"
+                       name="siteSubtitle"
+                       value="{$settings.siteSubtitle??'影视管理站'}"
+                       class="w-full bg-white/10 rounded-lg px-4 py-2">
+                <p class="text-sm text-gray-400">标题中网站名称前的描述词（默认"影视管理站"），留空则只显示网站名称</p>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-white-400 mb-1">技术支持/版权署名</label>
+                <input type="text"
+                       name="poweredBy"
+                       value="{$settings.poweredBy??'RandallAnjie.com'}"
+                       class="w-full bg-white/10 rounded-lg px-4 py-2">
+                <p class="text-sm text-gray-400">用于各页面 meta 作者信息，以及首页"由 X 提供技术支持"等署名</p>
+            </div>
+
+            <div class="space-y-2">
                 <label class="block text-white-400 mb-1">系统通知</label>
                 <textarea name="sysnotificiations"
                           rows="10"
@@ -301,6 +328,9 @@ function stopDragging() {
 
 function saveSettings() {
     const formData = {
+        siteName: $('input[name="siteName"]').val(),
+        siteSubtitle: $('input[name="siteSubtitle"]').val(),
+        poweredBy: $('input[name="poweredBy"]').val(),
         avableRegisterCount: $('input[name="avableRegisterCount"]').val(),
         findPasswordTemplate: $('textarea[name="findPasswordTemplate"]').val(),
         verifyCodeTemplate: $('textarea[name="verifyCodeTemplate"]').val(),

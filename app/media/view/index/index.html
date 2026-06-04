@@ -5,9 +5,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>影视管理站-<?php echo config('app.app_name'); ?></title>
+    <title>{:siteTitle()}</title>
     <meta name="description" content="专业的影视管理平台" />
-    <meta name="author" content="RandallAnjie.com" />
+    <meta name="author" content="{:config('app.powered_by')}" />
     <script src="/assets/index/js/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
@@ -90,7 +90,7 @@
     <!-- 导航栏 -->
     <nav class="fixed top-0 z-50 w-full px-4 md:px-6 py-4">
         <div class="glass-effect rounded-full mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center justify-between">
-            <a href="/media" class="text-xl md:text-2xl font-bold">影视管理站-<?php echo config('app.app_name'); ?></a>
+            <a href="/media" class="text-xl md:text-2xl font-bold">{:siteTitle()}</a>
 
             <!-- 移动端菜单按钮 -->
             <button id="menuButton" class="md:hidden p-2 glass-effect rounded-full">
@@ -273,7 +273,7 @@
             <div class="relative h-full flex items-center px-4 md:px-6">
                 <div class="max-w-2xl mx-auto md:ml-40 lg:ml-64 animate-fade-in mt-64">
                     <p class="text-base md:text-lg text-white/80 mb-8">
-                        由RandallAnjie.com提供技术支持，为您带来优质的影视及管理服务。多条线路保障，稳定可靠的观影体验。
+                        由<?php echo config('app.powered_by'); ?>提供技术支持，为您带来优质的影视及管理服务。多条线路保障，稳定可靠的观影体验。
                     </p>
                     {if isset(session('r_user')->id)}
                     <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/media/user/index'">

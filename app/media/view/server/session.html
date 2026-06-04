@@ -48,7 +48,7 @@
             echo '<td>未播放</td>';
             }
             ?>
-            <td class="py-3 px-4"><?php isset($session['LastActivityDate']) ? print_r(date('Y-m-d H:i:s', strtotime($session['LastActivityDate']))) : print_r('未知'); ?></td>
+            <td class="py-3 px-4"><?php echo isset($session['LastActivityDate']) ? htmlspecialchars(date('Y-m-d H:i:s', strtotime($session['LastActivityDate']))) : '未知'; ?></td>
             <td class="py-3 px-4">
                 <a href="javascript:;" onclick="copyText('{$session['DeviceId']}')">复制设备id</a>
                 <!--                    <a href="javascript:;" onclick="killSession('{$session['Id']}')">强制下线</a>-->

@@ -26,8 +26,8 @@ return [
             'single'         => false,
             // 独立日志级别
             'apart_level'    => [],
-            // 最大日志文件数量
-            'max_files'      => 0,
+            // 最大日志文件数量（按天分文件，30 即约保留最近 30 天，超出自动删除最旧的，避免 runtime/log 无限增长）
+            'max_files'      => 30,
             // 使用JSON格式记录
             'json'           => false,
             // 日志处理

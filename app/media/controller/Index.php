@@ -86,6 +86,8 @@ class Index extends BaseController
                         $ch = curl_init($url);
                         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                         curl_setopt($ch, CURLOPT_HTTPHEADER, [
                             'accept: */*'
                         ]);
@@ -143,6 +145,8 @@ class Index extends BaseController
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'accept: application/json'
                 ]);
@@ -169,6 +173,8 @@ class Index extends BaseController
                     $ch = curl_init($url);
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'accept: application/json'
                     ]);
@@ -248,6 +254,8 @@ class Index extends BaseController
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: */*'
             ]);
@@ -262,40 +270,7 @@ class Index extends BaseController
 
     public function admin()
     {
-        return redirect((string) url('/admin'));
-    }
-
-    public function demo()
-    {
-
-        $url = Config::get('media.urlBase') . 'Users/4a3606375b5d4d94a1f495af228066b2/Activity?EnableTotalRecordCount=true&api_key=' . Config::get('media.apiKey');
-//        $url = Config::get('media.urlBase') . 'Items/661720?UserId=4a3606375b5d4d94a1f495af228066b2&api_key=' . Config::get('media.apiKey');
-//        $url = Config::get('media.urlBase') . 'Movies/Recommendations?&pi_key=4d2f4c146c3742adabc0b6ad1c6ff735';
-//        $url = Config::get('media.urlBase') . 'Items?Ids=107786%2C107787&&pi_key=4d2f4c146c3742adabc0b6ad1c6ff735';
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'accept: application/json'
-        ]);
-        $movieRecommendations = curl_exec($ch);
-        echo $movieRecommendations;
-        die();
-        return view();
-    }
-
-    public function test()
-    {
-        $url = Config::get('payment.epay.urlBase') . 'api.php?act=order&pid=' . Config::get('payment.epay.id') . '&key=' . Config::get('payment.epay.key') . '&trade_no=' . 2024121407371828720 . '&out_trade_no=' . 2024121407371828720;
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'accept: application/json'
-        ]);
-        $respond = curl_exec($ch);
-        echo $respond;
-        die();
+        return redirect((string) url('/media/admin/index'));
     }
 
 }

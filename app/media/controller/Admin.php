@@ -18,6 +18,17 @@ use app\media\model\ExchangeCodeModel;
 
 class Admin extends BaseController
 {
+    protected function initialize()
+    {
+        // 后台控制器统一强制管理员校验，根治个别方法漏写 authority 校验导致的越权
+        $user = session('r_user');
+        if ($user == null || $user['authority'] != 0) {
+            $response = (Request::isJson() || Request::isAjax())
+                ? json(['code' => 400, 'message' => '无权访问'])
+                : redirect((string) url('/media/user/index'));
+            throw new \think\exception\HttpResponseException($response);
+        }
+    }
 
     public function index()
     {
@@ -1074,6 +1085,9 @@ class Admin extends BaseController
                     }
                 }
 
+                // 清除网站标题/副标题缓存，使后台修改立即生效（见 app\listener\InitSiteConfig）
+                \think\facade\Cache::delete('site_config');
+
                 return json(['code' => 200, 'message' => '设置已更新']);
             } catch (\Exception $e) {
                 return json(['code' => 400, 'message' => '更新失败：' . $e->getMessage()]);
@@ -1104,6 +1118,8 @@ class Admin extends BaseController
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'accept: */*',
             'Content-Type: application/json'

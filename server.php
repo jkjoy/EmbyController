@@ -332,6 +332,13 @@ $ws->onWorkerStart = function($worker) {
             }
         });
 
+        // 定时清理过大的日志文件，防止 runtime/log 下的 *.log 无限增长（每小时检查一次，仅 workerId 0 执行）
+        Timer::add(3600, function() use ($worker) {
+            if ($worker->id === 0) {
+                cleanupLogFiles();
+            }
+        });
+
 
     } catch (\Exception $e) {
         echo "数据库连接错误: " . $e->getMessage() . "\n";
@@ -1268,6 +1275,47 @@ function runCrontab() {
     curl_close($ch);
 }
 
+
+/**
+ * 清理 runtime/log 目录下过大的日志文件（server.php 内大量 file_put_contents 直接追加写入的日志，
+ * 如 lottery_draw.log / timer_error.log / proxy.log 等，均不受 config/log.php 管控）。
+ * 单个 .log 超过 10MB 时，仅保留最近约 2MB 的尾部内容，丢弃更早的旧日志，避免磁盘被占满。
+ * 注：ThinkPHP 框架自身按天分文件的日志由 config/log.php 的 max_files 控制，不在此处理。
+ */
+function cleanupLogFiles()
+{
+    $logDir = __DIR__ . '/runtime/log';
+    if (!is_dir($logDir)) {
+        return;
+    }
+
+    $maxSize  = 10 * 1024 * 1024; // 超过 10MB 触发截断
+    $keepSize = 2 * 1024 * 1024;  // 截断后保留尾部约 2MB
+
+    foreach (glob($logDir . '/*.log') as $file) {
+        $size = @filesize($file);
+        if ($size === false || $size <= $maxSize) {
+            continue;
+        }
+
+        $fp = @fopen($file, 'r');
+        if (!$fp) {
+            continue;
+        }
+        fseek($fp, -$keepSize, SEEK_END);
+        $tail = fread($fp, $keepSize);
+        fclose($fp);
+
+        // 从第一个换行处开始，避免保留半行
+        $pos = strpos($tail, "\n");
+        if ($pos !== false) {
+            $tail = substr($tail, $pos + 1);
+        }
+
+        $header = '[' . date('Y-m-d H:i:s') . " 日志过大已自动截断，仅保留最近内容]\n";
+        @file_put_contents($file, $header . $tail, LOCK_EX);
+    }
+}
 
 function checkConfigDatabase()
 {
