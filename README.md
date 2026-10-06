@@ -44,19 +44,246 @@ services:
 
 `quickstart.sh` 只使用 Docker Compose 部署，优先使用 `docker compose`，兼容已有的 `docker-compose`。脚本仅在缺少配置文件时下载 `docker-compose.yml`，保留已有文件，并在启动前提示编辑数据库配置。配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
 
-启动应用后，将镜像中的静态文件导出到宿主机；以下示例在原 Compose 部署目录执行，文件名按实际部署替换：
+#### 1. 部署位置与请求路径
+
+以下完整步骤以 **Nginx 直接安装在 Docker 宿主机上**、Ubuntu/Debian、域名 `emby.example.com` 为例。请将示例域名替换为自己的域名，把 DNS 的 A/AAAA 记录指向服务器，并允许网站使用的 80/443 端口通过防火墙。AAAA 记录也必须对应可访问的 IPv6 地址。已有 Nginx 的服务器可直接添加站点，不必重复安装。
+
+| 请求/端口 | 用途 | Nginx 如何处理 |
+| --- | --- | --- |
+| 网站的 80/443（或自定义 8018） | 浏览器访问 HTTP/HTTPS | 由外部 Nginx 监听 |
+| `/assets/`、`/static/` 等文件 | 样式、脚本、图片 | 从宿主机导出的 `public` 目录读取 |
+| `/media/user/login` 等动态路由 | ThinkPHP 页面与 API | 转成 `/index.php/…`，用 FastCGI 交给 `127.0.0.1:9000` |
+| 同域 `/ws` | 实时通知、未读数、在线人数 | 用 HTTP Upgrade 转发到 `127.0.0.1:2347` |
+
+9000/2347 的 Compose 映射保持 `127.0.0.1` 即可，无需向公网开放。9000 不是 HTTP 服务，不能用 `proxy_pass http://127.0.0.1:9000` 或浏览器直接访问。应用需要部署在域名根路径，网站入口为 `/media`；不要再套一层 `/emby/` 等路径前缀。
+
+#### 2. 安装 Nginx、启动应用并导出静态文件
+
+在服务器安装 Nginx：
 
 ```sh
-docker compose -f docker-compose.yml up -d
-sudo mkdir -p /srv/emby-controller/public
-sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/app/public/." /srv/emby-controller/public/
+sudo apt update
+sudo apt install -y nginx
+sudo systemctl enable --now nginx
 ```
 
-导出目录需允许 Nginx 用户读取；每次更新镜像后同步静态文件。`quickstart.sh` 下载的部署配置位于执行目录下的 `EmbyController` 文件夹，上述命令应在该文件夹执行。
+填写 Compose 中的数据库连接后，在 **Compose 文件所在目录** 执行；使用内置数据库时，将下面所有 `docker-compose.yml` 替换为实际文件名。`quickstart.sh` 的部署目录为执行目录下的 `EmbyController` 文件夹。以下 Docker 命令假定当前用户有 Docker 操作权限，否则需使用 `sudo`，包括命令替换中的 `docker compose`。
 
-将 [docker/nginx.conf](docker/nginx.conf) 作为宿主机 Nginx 站点配置，按需修改域名、监听端口、TLS 和 `root` 目录，再执行 `nginx -t` 并重载。示例监听 8018，通过 FastCGI 将 PHP 请求交给容器，并将同域 `/ws` 转发至 2347；`SCRIPT_FILENAME` 必须保留容器内的 `/app/public` 路径。Nginx 的访问日志和错误日志由宿主机管理。
+```sh
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml ps
+```
 
-如果 Nginx 位于另一台机器或独立容器，请通过可达的地址或私有 Docker 网络连接应用的 9000、2347 端口，并调整代理地址。外部 Redis 的 `127.0.0.1` 指向应用容器自身，应填写实际可达的服务器地址。
+等应用完成数据库迁移并正常启动，再导出 **运行中的同一版本容器** 的 `public` 文件：
+
+```sh
+sudo install -d -m 755 /srv/emby-controller /srv/emby-controller/public
+sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/app/public/." /srv/emby-controller/public/
+sudo chmod -R a+rX /srv/emby-controller/public
+```
+
+`public/.` 会复制目录内容，最终应存在 `/srv/emby-controller/public/index.php` 和 `/srv/emby-controller/public/assets/`，不要多套一层 `public/public`。Nginx 用户需要读取文件、遍历每级父目录；这里导出的都是公开资源，不必让 Nginx 对目录有写权限。
+
+两套路径的用途不同，后面的配置必须分别填写：
+
+| 配置 | 示例路径 | 谁使用 |
+| --- | --- | --- |
+| `root` | `/srv/emby-controller/public` | 宿主机 Nginx，读取静态文件 |
+| `SCRIPT_FILENAME` | `/app/public/index.php` | 容器内 PHP-FPM，执行应用入口 |
+
+PHP 在容器内执行，不需要在宿主机安装 PHP、Composer 或复制 `vendor`。不要把宿主机整个 `public` 目录挂载到容器的 `/app/public`，以免覆盖镜像中的入口和新版资源。现有 `public/uploads` 中的资源也会被导出；以后若新增容器内生成或上传的文件，需同步对应目录或为它单独设计共享存储，仅首次导出不会自动同步新文件。
+
+#### 3. 添加可直接使用的 HTTP 站点配置
+
+将下面内容保存为 `/etc/nginx/conf.d/emby-controller.conf`，或使用仓库中的 [docker/nginx.conf](docker/nginx.conf)。该文件是 `server` 片段，必须由 Nginx 主配置的 `http` 块加载；Ubuntu/Debian 默认已加载 `/etc/nginx/conf.d/*.conf`。使用宝塔等面板时，在该域名的站点配置中使用这些规则，替换原有重复的 PHP 和伪静态规则，并将 `root` 改为实际导出目录。
+
+```nginx
+server {
+    listen 80;
+    server_name emby.example.com;
+    root /srv/emby-controller/public;
+    index index.php;
+    client_max_body_size 20m;
+
+    access_log /var/log/nginx/emby-controller.access.log;
+    error_log /var/log/nginx/emby-controller.error.log;
+
+    # 同域 WebSocket 入口，保留 /ws 和查询参数。
+    location = /ws {
+        proxy_pass http://127.0.0.1:2347;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    # 找到静态文件就直接返回，否则交给 ThinkPHP 的前端入口。
+    location / {
+        try_files $uri $uri/ /index.php$uri$is_args$args;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    # 只执行 index.php，PATH_INFO 用于 /media/... 等路由。
+    location ~ ^/index\.php(?:/|$) {
+        fastcgi_split_path_info ^(/index\.php)(/.*)$;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /app/public/index.php;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param HTTPS $https if_not_empty;
+        fastcgi_param HTTP_HOST $http_host;
+        fastcgi_param HTTP_X_FORWARDED_HOST $http_host;
+        fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
+        fastcgi_param HTTP_X_FORWARDED_FOR $remote_addr;
+        fastcgi_param HTTP_X_REAL_IP $remote_addr;
+        fastcgi_pass 127.0.0.1:9000;
+    }
+
+    location ~ \.php(?:/|$) {
+        return 404;
+    }
+}
+```
+
+`include fastcgi_params` 使用 Nginx 自带的参数文件，不能直接套用面板的本地 PHP 配置。某些安装自带的参数文件也定义了 `SCRIPT_FILENAME`，这时应在本站点使用的参数副本中去掉该定义，确保只传入容器路径 `/app/public/index.php`。`fastcgi_split_path_info` 和 `PATH_INFO` 需要保留，否则 `/media/user/login` 等路由可能无法识别。
+
+检查配置并加载：
+
+```sh
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+浏览器打开 `http://emby.example.com/media/user/login`。如果只做 IP/端口测试，把 `listen 80` 改为 `listen 8018`、`server_name` 改为实际 IP，开放 8018，访问 `http://服务器IP:8018/media/user/login`。后台“网站地址”也要包含该端口，例如 `http://服务器IP:8018`。如果存在 AAAA 记录，还需在同一 `server` 中加 `listen [::]:80;`（自定义端口时同步调整），并确保服务器 IPv6 可达。
+
+#### 4. 配置 HTTPS
+
+先确认上面的 HTTP 站点可以通过实际域名访问，再申请证书。Ubuntu/Debian 可使用 Certbot 的 Nginx 插件：
+
+```sh
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d emby.example.com --redirect
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot renew --dry-run
+```
+
+申请证书时域名必须正确解析且公网 80 端口可达；已有证书或由面板管理证书时可跳过 Certbot。插件会为对应域名添加 HTTPS 监听和证书，并配置 HTTP 跳转，原来的 PHP 和 `/ws` 规则仍需保留。确认系统已启用 Certbot 提供的自动续期任务，续期后 Nginx 也需要加载新证书。
+
+已有证书时，将原站点的 `listen 80;` 替换为下面内容，证书路径填写实际已有文件，保留 `root`、所有 `location` 和日志配置：
+
+```nginx
+listen 443 ssl;
+# 有 IPv6 时再添加：listen [::]:443 ssl;
+ssl_certificate /etc/letsencrypt/live/emby.example.com/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/emby.example.com/privkey.pem;
+ssl_protocols TLSv1.2 TLSv1.3;
+```
+
+再添加一个独立 HTTP 跳转块；仅在证书已经准备好时测试并重载，不存在的证书路径会导致 `nginx -t` 失败：
+
+```nginx
+server {
+    listen 80;
+    # 有 IPv6 时再添加：listen [::]:80;
+    server_name emby.example.com;
+    return 301 https://emby.example.com$request_uri;
+}
+```
+
+如果证书续期采用 HTTP webroot 验证，需按证书工具说明为 `/.well-known/acme-challenge/` 添加专用放行规则和实际验证目录；当前配置的隐藏文件规则会阻止这个路径。Certbot 的 `--nginx` 模式会处理验证规则。
+
+HTTPS 配好后，在后台“系统设置”把网站地址设为 `https://emby.example.com`，不带 `/media`。浏览器会自动使用 `wss://emby.example.com/ws`；Nginx 负责 TLS，2347 上游仍使用 `http://127.0.0.1:2347`。配置中的 `HTTPS` 和 `HTTP_X_FORWARDED_PROTO` 参数让 PHP 识别网站协议。若前方还有 CDN 或其它代理，建议它们到本站 Nginx 也使用 HTTPS，保证这一层的 `$scheme` 与公开网站协议一致。
+
+#### 5. 验证访问与查看日志
+
+```sh
+# 没有启用 HTTPS 时，将下面的 https 改为 http。
+curl -I https://emby.example.com/assets/index/css/layui.css
+curl -I https://emby.example.com/media/user/login
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml logs --tail=100 emby-controller
+sudo tail -n 100 /var/log/nginx/emby-controller.error.log
+```
+
+静态文件和登录页应正常返回（登录页通常为 200；已登录状态可能跳转）。使用初始管理员 `admin/A123456` 登录并修改密码，在后台配置网站地址、网站标题、Logo、Emby 及所需服务。打开浏览器开发者工具的“网络 / WS”，进入带导航的页面后，`/ws` 握手应返回 **101 Switching Protocols**。直接用普通 HTTP 请求打开 `/ws` 不等同于 WebSocket 握手。
+
+外部 Nginx 的日志由宿主机管理，不受应用 Compose 的日志轮转限制。Ubuntu/Debian 软件包通常通过 `/etc/logrotate.d/nginx` 维护 `/var/log/nginx/*.log`；面板或自装 Nginx 需要检查自己的日志轮转设置。
+
+#### 6. 更新镜像与同步静态文件
+
+每次更新镜像后，在原 Compose 目录运行以下命令，确保宿主机资源与容器应用版本一致：
+
+```sh
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
+sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/app/public/." /srv/emby-controller/public/
+sudo chmod -R a+rX /srv/emby-controller/public
+```
+
+复制会覆盖同名文件，不会清除宿主机多余文件；若曾自行添加上传资源，请先备份并单独维护该目录。更新静态文件不要求重载 Nginx，改动 Nginx 配置后才需要 `nginx -t` 和重载。改动 Compose 的数据库环境变量或端口映射后，执行 `docker compose -f docker-compose.yml up -d` 让 Compose 重建应用容器，单纯 `restart` 不会更新这些配置。
+
+#### 7. Nginx 在另一台机器或独立容器时
+
+**另一台服务器上的 Nginx：** 当前 `127.0.0.1` 映射只能供 Docker 宿主机使用。假设 Docker 宿主机的私网地址是 `10.0.0.10`，将应用服务的端口映射改为：
+
+```yaml
+ports:
+  - "10.0.0.10:9000:9000"
+  - "10.0.0.10:2347:2347"
+```
+
+该地址必须实际属于 Docker 宿主机。在防火墙中只允许 Nginx 服务器访问这两个私网端口，应用更新后执行 Compose `up -d`。将 Nginx 配置改为 `fastcgi_pass 10.0.0.10:9000;` 和 `proxy_pass http://10.0.0.10:2347;`，并把导出的 `public` 文件同步到 **Nginx 所在服务器** 的 `root` 目录。`SCRIPT_FILENAME` 仍为 `/app/public/index.php`。没有私网时应先通过 VPN 等建立私有连接。
+
+**独立的 Nginx 容器：** Nginx 容器中的 `127.0.0.1` 指向自身，应让它与应用加入同一个私有 Docker 网络，再使用应用服务名。例如先创建共享网络：
+
+```sh
+docker network create emby-proxy
+```
+
+在现有应用 Compose 中合并以下网络配置，并执行原部署的 Compose `up -d`。下面示例适用于 `docker-compose.yml` 和 `docker-compose-all-2.yml`；使用 `docker-compose-all-1.yml` 时，将应用网络列表中的 `default` 换成它原有的 `emby-network`，并保留原来的顶层 `emby-network` 定义。已有自定义网络的部署也应保留原网络列表，只追加 `emby-proxy`：
+
+```yaml
+services:
+  emby-controller:
+    networks:
+      - default
+      - emby-proxy
+networks:
+  emby-proxy:
+    external: true
+    name: emby-proxy
+```
+
+应用与内置数据库必须继续共享原来的网络。由外部 Nginx 的独立部署同样加入这个 `emby-proxy` 外部网络，设置 `fastcgi_pass emby-controller:9000;` 和 `proxy_pass http://emby-controller:2347;`。服务名通过 Docker DNS 解析，应用重建导致容器 IP 改变后应重载 Nginx，让它重新解析上游地址。
+
+将宿主机导出的 `/srv/emby-controller/public` 只读挂载到 Nginx 容器，例如 `/srv/emby-controller/public:/srv/emby-controller/public:ro`，`root` 填写 **Nginx 容器内** 的挂载路径。站点配置也由外部 Nginx 的部署挂载，日志路径必须在该容器内存在。网络直连使用容器端口，不依赖宿主机端口映射；确认宿主机不再需要访问后可移除应用的 `ports`。本项目不把 Nginx 加回应用镜像或默认 Compose。
+
+无论哪种方式，外部 Redis 的 `127.0.0.1` 都指向应用容器自身，后台应填写应用容器实际可达的 Redis 地址。
+
+#### 常见问题
+
+| 现象 | 检查与处理 |
+| --- | --- |
+| 默认欢迎页、请求到了别的站点 | 检查域名 DNS、请求端口和 `server_name`；用 `sudo nginx -T` 确认本站点已加载，检查是否存在重复域名配置。 |
+| 动态页 502 / `Connection refused` | 用 `docker compose … ps` 和日志确认应用启动成功、数据库可连接，检查 9000 映射；Nginx 在另一台机器/容器时不能使用自身的 `127.0.0.1`。 |
+| `Primary script unknown` / `File not found` | `SCRIPT_FILENAME` 必须是容器内的 `/app/public/index.php`，不能是 `/srv/…`；检查参数文件或面板规则是否重复覆盖了它。 |
+| 静态文件正常，`/media/…` 页面 404 | 确认 `try_files` 转发到 `/index.php` 并保留原路径，PHP 规则有 `fastcgi_split_path_info` 和 `PATH_INFO`。 |
+| 样式、图片 404/403 | 检查 `root`、文件是否实际导出、是否多套 `public`，以及 Nginx 对文件和所有父目录的权限；更新镜像后重新导出。启用 SELinux 的系统还需按发行版要求允许 Nginx 读取站点目录和连接上游。 |
+| 页面正常，实时通知无法连接 | 在浏览器 WS 中检查 `/ws`；确认 `Upgrade`/`Connection`、HTTP/1.1 和 2347 地址正确，应用日志中 WebSocket 已启动，上游代理/CDN 也支持 WebSocket。 |
+| HTTPS 跳转或生成链接协议错误 | 保留 FastCGI 的 `HTTPS`/协议参数，在后台填写实际 HTTPS 网站地址；前方代理到本站 Nginx 也使用 HTTPS。 |
+| HTTPS 重载失败 | 检查证书文件是否存在、域名证书是否正确、私钥是否可由 Nginx 主进程读取，先通过 `nginx -t` 再重载。 |
+| 自定义端口访问失败 | 同步修改 Nginx `listen`、防火墙/云安全组和后台网站地址；浏览器 `/ws` 会跟随网站端口，无需修改前端代码。 |
 
 ### 后台配置与旧环境变量迁移
 
