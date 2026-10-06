@@ -76,10 +76,11 @@ else
   rm -f "$compose_download_tmp"
 fi
 
-echo "请先编辑 $(pwd)/docker-compose.yml 中 emby-controller 的 environment，填写实际数据库连接信息。"
-echo "本脚本使用 Docker Compose 部署，数据库配置直接写在 Compose 文件中。"
+echo "新下载的默认配置使用 SQLite，数据持久化到 $(pwd)/data，无需单独安装数据库。"
+echo "已有 docker-compose.yml 保持原配置；如需 MySQL，请按 README 编辑 environment 中的数据库连接。"
+echo "本脚本使用 Docker Compose 部署，数据库配置直接写在 Compose 文件中，无需 .env。"
 echo "如升级旧部署，请先按 README 导入旧业务配置，再切换新的 Compose 配置。"
-read -r -p "完成编辑后是否启动? (y/n): " start_choice
+read -r -p "是否使用当前 Compose 配置启动? (y/n): " start_choice
 if [[ "$start_choice" =~ ^[Yy]$ ]]; then
   "${compose_command[@]}" -f docker-compose.yml up -d
   echo "容器已启动。请配置外部 Nginx 连接 9000 端口、代理 2347 端口的 /ws，再登录管理后台填写网站地址、Emby 及其它服务设置。"

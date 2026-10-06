@@ -10,6 +10,9 @@ node_modules
 runtime/*
 app/runtime/log
 .env
+# SQLite 数据文件和 WAL/SHM 仅保存在部署目录，不进入镜像。
+data
+backups
 # Compose 中直接填写数据库连接，部署文件无需进入应用镜像。
 docker-compose*.yml
 docker-compose*.yaml

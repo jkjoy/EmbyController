@@ -8,17 +8,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # 直接修改数据库连接；其它设置在管理后台保存。
+    # 默认使用持久化 SQLite；其它设置在管理后台保存。
     environment:
-      DB_DRIVER: "mysql"
-      DB_TYPE: "mysql"
-      DB_HOST: "your-mysql-host"
-      DB_NAME: "randallanjie"
-      DB_USER: "root"
-      DB_PASS: "replace-with-your-database-password"
-      DB_PORT: "3306"
-      DB_CHARSET: "utf8mb4"
+      DB_DRIVER: "sqlite"
+      DB_TYPE: "sqlite"
+      DB_NAME: "/app/data/emby-controller.sqlite"
       DB_PREFIX: "rc_"
+    volumes:
+      - ./data:/app/data
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:2347:2347"

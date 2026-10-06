@@ -7,17 +7,15 @@ class AddInitialAdminUser extends Migrator
     public function up()
     {
         $password = '$2y$10$rJff.jXkgLpFBN0qE9B.Uu/gnlH2WsUqblAMJOH4iNg7w7OjKJZG6';
-        $sql = "INSERT INTO `{$this->getTable('user')}` ("
-             . "`userName`, `nickName`, `password`, `authority`, `email`, `rCoin`"
-             . ") VALUES ("
-             . "'admin', 'admin', '{$password}', 0, 'randall@randallanjie.com', 0"
-             . ");";
-        $this->execute($sql);
+        $this->table('user')->insert([
+            'userName' => 'admin', 'nickName' => 'admin', 'password' => $password,
+            'authority' => 0, 'email' => 'randall@randallanjie.com', 'rCoin' => 0,
+        ])->saveData();
     }
 
     public function down()
     {
-        $this->execute("DELETE FROM `{$this->getTable('user')}` WHERE `userName` = 'admin';");
+        $this->execute("DELETE FROM {$this->getTable('user')} WHERE userName = 'admin';");
     }
 
     /**
@@ -25,6 +23,7 @@ class AddInitialAdminUser extends Migrator
      */
     private function getTable($name)
     {
-        return env('DB_PREFIX', 'rc_') . $name;
+        $adapter = $this->getAdapter();
+        return $adapter->quoteTableName(($adapter->getOption('table_prefix') ?? '') . $name);
     }
 }

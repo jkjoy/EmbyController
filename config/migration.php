@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'default' => 'mysql',
+    'default' => env('DB_DRIVER', env('DB_TYPE', 'sqlite')),
     
     'paths' => [
         'migrations' => 'database/migrations',
@@ -10,7 +10,13 @@ return [
     
     'environments' => [
         'default_migration_table' => env('DB_PREFIX', 'rc_') . 'migrations', // 添加表前缀
-        'default_database' => 'mysql',
+        'default_database' => env('DB_DRIVER', env('DB_TYPE', 'sqlite')),
+        'sqlite' => [
+            'adapter' => 'sqlite',
+            'name' => \EmbyDatabase\Sqlite::databasePath(env('DB_NAME', 'data/emby-controller.sqlite'), root_path()),
+            'suffix' => '',
+            'table_prefix' => env('DB_PREFIX', 'rc_'),
+        ],
         'mysql' => [
             'adapter' => 'mysql',
             'host' => env('DB_HOST', 'localhost'),

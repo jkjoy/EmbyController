@@ -1,5 +1,7 @@
 *.log
 .env
+/data/
+/backups/
 composer.phar
 .DS_Store
 Thumbs.db

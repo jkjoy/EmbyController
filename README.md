@@ -23,7 +23,25 @@
 
 应用镜像运行 PHP-FPM、队列、WebSocket 和日志维护，不包含 Nginx 或 Redis 服务。Compose 中不再启动 Redis；默认使用文件缓存，如需外部 Redis，在管理后台填写容器可访问的连接地址、端口、密码和数据库编号。镜像保留用于连接外部 Redis 的 PHP 客户端扩展。
 
-PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。Docker 部署直接修改 Compose 文件中应用服务的 `environment`，无需创建或挂载 `.env`：
+PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。默认部署使用 **SQLite**，无需安装 MySQL。数据库配置直接写在 Compose 的 `environment` 中，无需创建或挂载 `.env`：
+
+```yaml
+services:
+  emby-controller:
+    environment:
+      DB_DRIVER: "sqlite"
+      DB_TYPE: "sqlite"
+      DB_NAME: "/app/data/emby-controller.sqlite"
+      DB_PREFIX: "rc_"
+    volumes:
+      - ./data:/app/data
+```
+
+首次启动会创建数据库、运行迁移并初始化管理员和后台设置。数据文件位于 Compose 所在目录的 `data/emby-controller.sqlite`，容器内路径为 `/app/data/emby-controller.sqlite`。SQLite 的 WAL/SHM 文件也在这个目录中，因此必须持久化 **整个 `data` 目录**，不要只挂载单个数据库文件。重建或更新应用容器会继续使用该目录中的数据；修改表前缀后会使用另一套表，请保持已部署的 `DB_PREFIX`。
+
+SQLite 适合单机部署，多个 PHP-FPM/Workerman 进程共享同一个本地数据库文件。应用使用 WAL 和写锁等待来处理并发访问，事务在写入前取得锁；写事务仍会串行执行。需要多台应用服务器共享数据库或较多并发写入时，使用 MySQL。不要把 SQLite 数据目录放在 NFS/SMB 等网络文件系统中，也不要使用 `:memory:` 作为多进程应用的数据源。
+
+**切换 MySQL：** 连接外部 MySQL 时，将应用服务的 `environment` 替换为以下配置，并填写容器可访问的实际数据库地址及账号密码：
 
 ```yaml
 services:
@@ -40,9 +58,22 @@ services:
       DB_PREFIX: "rc_"
 ```
 
-以上片段对应连接外部 MySQL 的 `docker-compose.yml`，启动前必须填写容器可访问的实际数据库地址及账号密码。使用 `docker-compose-all-1.yml` 或 `docker-compose-all-2.yml` 内置数据库时，应用的连接信息必须与数据库服务的数据库名、账号和密码一致。Compose 中密码包含 `$` 时写成 `$$`，以传入字面的 `$`。
+也可以使用保留 MySQL 服务的 `docker-compose-all-1.yml` 或 `docker-compose-all-2.yml`，应用的连接信息必须与数据库服务的数据库名、账号和密码一致。Compose 中密码包含 `$` 时写成 `$$`，以传入字面的 `$`。
 
-`quickstart.sh` 只使用 Docker Compose 部署，优先使用 `docker compose`，兼容已有的 `docker-compose`。脚本仅在缺少配置文件时下载 `docker-compose.yml`，保留已有文件，并在启动前提示编辑数据库配置。配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
+**已有 MySQL 部署升级：** 保留原有 Compose 和数据库连接即可，不会自动改成 SQLite。仅修改 `DB_DRIVER` 不会搬迁用户、余额、Emby 账号或后台设置；这只是改用另一个数据源。需要转换数据库时，应先备份并另行迁移数据。
+
+**备份 SQLite：** 在原 Compose 目录停止应用，再备份整个数据目录，以保留尚未合并到主文件的 WAL 内容；不要在服务写入期间只复制 `.sqlite` 主文件：
+
+```sh
+docker compose -f docker-compose.yml stop emby-controller
+sudo install -d -m 700 backups
+sudo tar -C data -czf "backups/sqlite-$(date +%Y%m%d-%H%M%S).tar.gz" .
+docker compose -f docker-compose.yml start emby-controller
+```
+
+恢复时也先停止应用，将备份的完整数据目录恢复到原位置，再启动。`data` 和备份包含账号、凭据和后台设置，应妥善保存，不放到 Nginx 的 `public` 目录下；本地数据目录已被排除在 Git 和镜像构建之外。
+
+`quickstart.sh` 只使用 Docker Compose 部署，优先使用 `docker compose`，兼容已有的 `docker-compose`。脚本仅在缺少配置文件时下载默认 SQLite 的 `docker-compose.yml`，保留已有文件；首次安装可直接启动，需要 MySQL 时先按上面的说明编辑配置。配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
 
 #### 1. 部署位置与请求路径
 
@@ -67,7 +98,7 @@ sudo apt install -y nginx
 sudo systemctl enable --now nginx
 ```
 
-填写 Compose 中的数据库连接后，在 **Compose 文件所在目录** 执行；使用内置数据库时，将下面所有 `docker-compose.yml` 替换为实际文件名。`quickstart.sh` 的部署目录为执行目录下的 `EmbyController` 文件夹。以下 Docker 命令假定当前用户有 Docker 操作权限，否则需使用 `sudo`，包括命令替换中的 `docker compose`。
+确认所选数据库配置后，在 **Compose 文件所在目录** 执行；默认 SQLite 可直接启动，使用内置 MySQL 时，将下面所有 `docker-compose.yml` 替换为实际文件名。`quickstart.sh` 的部署目录为执行目录下的 `EmbyController` 文件夹。以下 Docker 命令假定当前用户有 Docker 操作权限，否则需使用 `sudo`，包括命令替换中的 `docker compose`。
 
 ```sh
 docker compose -f docker-compose.yml pull
@@ -287,7 +318,7 @@ networks:
 
 ### 后台配置与旧环境变量迁移
 
-环境变量只保留 `DB_DRIVER`、`DB_TYPE`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS`、`DB_PORT`、`DB_CHARSET`、`DB_PREFIX`。网站标题、副标题、描述、关键词、Logo、图标、页脚，以及网站地址、Emby、线路、Telegram、邮件、支付、缓存、代理和 AI 等配置统一在后台“系统设置”填写，保存到现有数据库配置表（默认 `rc_config`）。
+环境变量只保存数据库信息。默认 SQLite 使用 `DB_DRIVER`、`DB_TYPE`、`DB_NAME`、`DB_PREFIX`；MySQL 另外使用 `DB_HOST`、`DB_USER`、`DB_PASS`、`DB_PORT`、`DB_CHARSET`。网站标题、副标题、描述、关键词、Logo、图标、页脚，以及网站地址、Emby、线路、Telegram、邮件、支付、缓存、代理和 AI 等配置统一在后台“系统设置”填写，保存到所选数据库的配置表（默认 `rc_config`）。
 
 Docker 启动脚本会自动运行数据库迁移并初始化后台设置。使用初始管理员 `admin/A123456` 登录并修改密码，再在后台填写网站地址、Emby 连接及所需服务。未填写的可选服务保持关闭。定时任务密钥会自动初始化为随机值；密钥和密码在后台只显示是否已配置，留空保存会保留已有值，需要删除时勾选“清除已保存内容”。定时任务密钥的对应选项为“重置为随机密钥”，重置后仍保持已配置，原有 Webhook 调用方需更新密钥。
 
@@ -391,7 +422,7 @@ docker compose -f docker-compose.yml up -d --force-recreate
 
 - **后端**：PHP8
 - **前端**：Html JavaScript Css Tailwindcss
-- **数据库**：MySQL
+- **数据库**：SQLite（默认）/ MySQL
 - **框架**：ThinkPHP Layui
 - **其他工具**：Composer、cURL、Cloudflare Turnstile、Telegram Bot API
 
@@ -411,12 +442,14 @@ docker compose -f docker-compose.yml up -d --force-recreate
     composer install
     ```
 
+   PHP 需启用 PDO SQLite 扩展；使用 MySQL 时启用 PDO MySQL。Docker 镜像自带两种驱动。
+
 3. **配置环境**：
-   - 将 `example.env` 复制成 `.env` 。
-   - 只更新 `.env` 中的数据库连接信息。
+   - 默认无需 `.env`，使用项目目录下的 `data/emby-controller.sqlite`。
+   - 自定义数据库时，将 `example.env` 复制成 `.env`，只填写数据库信息。SQLite 的 `DB_NAME` 支持相对项目目录或绝对文件路径；MySQL 填写上文所列连接参数。
 
 4. **初始化数据库**：
-   - 执行 `php think migrate:run` 建表并初始化管理员。
+   - 执行 `php think migrate:run` 创建数据库目录、建表并初始化管理员。
    - 初始用户名/密码：admin/A123456，首次登录后修改密码。
 
 5. **启动开发服务器**：

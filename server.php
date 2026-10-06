@@ -658,9 +658,6 @@ function processAutoRenewal($embyUser, $user) {
             ]),
         ]);
 
-        // 发送通知
-        sendNotification($user['id'], '您的Emby账号已自动续期至 ' . date('Y-m-d H:i:s', $newExpireTime));
-
         Db::commit();
     } catch (\Exception $e) {
         echo "处理自动续期错误: " . $e->getMessage() . "\n";
@@ -668,6 +665,8 @@ function processAutoRenewal($embyUser, $user) {
         Db::rollback();
         throw $e;
     }
+    // 网络通知不占用 SQLite 的写事务，也不影响已提交的扣费和续期。
+    sendNotification($user['id'], '您的Emby账号已自动续期至 ' . date('Y-m-d H:i:s', $newExpireTime));
 }
 
 // 禁用Emby账号
@@ -841,7 +840,7 @@ function checkLotteryDraw() {
                                     $newWinner = $participantModel
                                         ->where('lotteryId', $lottery['id'])
                                         ->where('status', 0)
-                                        ->orderRaw('RAND()')
+                                        ->orderRand()
                                         ->find();
 
                                     if ($newWinner) {

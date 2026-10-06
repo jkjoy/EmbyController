@@ -1279,8 +1279,8 @@ class User extends BaseController
                 'createdAt',
                 'readStatus',
                 'ROW_NUMBER() OVER (PARTITION BY 
-                    LEAST(fromUserId, toUserId), 
-                    GREATEST(fromUserId, toUserId) 
+                    CASE WHEN fromUserId < toUserId THEN fromUserId ELSE toUserId END,
+                    CASE WHEN fromUserId > toUserId THEN fromUserId ELSE toUserId END
                     ORDER BY createdAt DESC) as rn'
             ])
                 ->where(function ($query) use ($userId) {
@@ -1292,7 +1292,8 @@ class User extends BaseController
 
             // 主查询获取最新消息并关联用户信息
             $notifications = $notificationModel->table($subQuery . ' n')
-                ->where('n.rn', 1)
+                // 窗口结果没有列类型；使用数值常量避免 SQLite 将绑定值当作字符串。
+                ->whereRaw('n.rn = 1')
                 ->join('rc_user u1', 'u1.id = n.fromUserId')
                 ->join('rc_user u2', 'u2.id = n.toUserId')
                 ->field([

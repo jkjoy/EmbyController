@@ -17,6 +17,7 @@ RUN apk add --no-cache \
     libzip-dev \
     libjpeg-turbo-dev \
     freetype-dev \
+    sqlite-dev \
     # 额外工具
     zip \
     git
@@ -25,6 +26,7 @@ RUN apk add --no-cache \
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     pdo_mysql \
+    pdo_sqlite \
     pcntl \
     bcmath \
     gd \
@@ -70,6 +72,12 @@ COPY . /app
 # （think service:discover + vendor:publish，须在源码就位后执行）
 RUN composer dump-autoload --optimize --no-dev
 
+# 在实际 PHP 8.3/Alpine 环境验证默认 SQLite，失败时不发布镜像。
+# 测试只使用临时数据库，不读取部署数据。
+RUN php tests/database_environment.php \
+    && php tests/system_settings.php \
+    && php tests/system_settings_integration.php
+
 # 调整PHP配置
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && sed -i \
@@ -94,6 +102,8 @@ FROM php:8.3-fpm-alpine
 RUN apk add --no-cache \
     fcgi \
     logrotate \
+    su-exec \
+    sqlite-libs \
     libpng \
     libjpeg \
     freetype \
@@ -123,6 +133,12 @@ RUN chmod +x /start.sh \
     && mkdir -p /var/lib/logrotate \
     && chown -R www-data:www-data /app \
     && chmod -R 755 /app/runtime
+
+# 最终运行环境以与 FPM 相同的用户检查 SQLite 文件权限、迁移和并发事务。
+RUN php-fpm -t \
+    && su-exec www-data:www-data php tests/sqlite_connection.php \
+    && su-exec www-data:www-data php tests/sqlite_migrations.php \
+    && su-exec www-data:www-data php tests/sqlite_business.php
 
 # 暴露端口
 EXPOSE 9000 2347

@@ -1,8 +1,11 @@
 <?php
 
+// 注册迁移适配器只加载类，不创建目录或连接数据库。
+\Phinx\Db\Adapter\AdapterFactory::instance()->registerAdapter('sqlite', \EmbyDatabase\SqliteMigrationAdapter::class);
+
 return [
     // 默认使用的数据库连接配置
-    'default'         => env('DB_DRIVER', 'mysql'),
+    'default'         => env('DB_DRIVER', env('DB_TYPE', 'sqlite')),
 
     // 自定义时间查询规则
     'time_query_rule' => [],
@@ -20,6 +23,25 @@ return [
 
     // 数据库连接配置信息
     'connections'     => [
+        'sqlite' => [
+            'type'            => 'sqlite',
+            'database'        => \EmbyDatabase\Sqlite::databasePath(env('DB_NAME', 'data/emby-controller.sqlite'), root_path()),
+            'prefix'          => env('DB_PREFIX', 'rc_'),
+            'params'          => [\PDO::ATTR_TIMEOUT => 5],
+            // Think Migration 从这里读取连接字段；suffix 为空以保留完整文件名。
+            'hostname'        => '',
+            'username'        => '',
+            'password'        => '',
+            'hostport'        => '',
+            'charset'         => 'utf8',
+            'suffix'          => '',
+            'deploy'          => 0,
+            'rw_separate'     => false,
+            'fields_strict'   => true,
+            'break_reconnect' => false,
+            'trigger_sql'     => false,
+            'fields_cache'    => true,
+        ],
         'mysql' => [
             // 数据库类型
             'type'            => env('DB_TYPE', 'mysql'),
