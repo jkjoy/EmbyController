@@ -80,6 +80,7 @@ def main(image):
                 "-p", "127.0.0.1::8018", image,
             )
             details = json.loads(docker("inspect", name))[0]
+            assert details["Config"].get("StopSignal") == "SIGTERM", "Supervisor must receive TERM on docker stop"
             port = int(details["NetworkSettings"]["Ports"]["8018/tcp"][0]["HostPort"])
             assert not details["NetworkSettings"]["Ports"].get("9000/tcp")
             assert not details["NetworkSettings"]["Ports"].get("2347/tcp")
@@ -109,9 +110,11 @@ def main(image):
         status, body, _ = request(opener, origin, "/media/admin/setting", {"siteName": "Direct Port Smoke"})
         assert status == 200 and json.loads(body)["code"] == 200, "Admin setting did not persist"
         assert websocket(port), "Same-port WebSocket upgrade failed"
+        print("PASS: real HTTP/static/admin/session and same-port WebSocket", flush=True)
 
         docker("stop", "--time", "10", name)
-        assert state(name)["ExitCode"] == 0, "Normal shutdown required a kill or returned an error"
+        stopped = state(name)
+        assert stopped["ExitCode"] == 0, "Normal shutdown returned: " + json.dumps(stopped)
         docker("rm", name)
         _, origin, opener = start()
         assert b"Direct Port Smoke" in request(opener, origin, "/media/user/login")[1], "Database setting lost after recreation"

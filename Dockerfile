@@ -157,5 +157,7 @@ HEALTHCHECK --interval=30s --timeout=3s \
     CMD wget -q -O /dev/null http://127.0.0.1:8018/media/user/login
 
 # 启动命令
+# 覆盖 PHP-FPM 基镜像的 SIGQUIT，由启动脚本统一停止全部服务。
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["/sbin/tini", "-g", "--"]
 CMD ["/start.sh"]

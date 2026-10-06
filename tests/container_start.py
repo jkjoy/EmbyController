@@ -135,8 +135,12 @@ class Fixture:
     def fail(self, name, status):
         write(self.root / ("fail-" + name), str(status))
 
-    def signal(self, name):
-        subprocess.run([SHELL, "-c", 'kill "-$1" "$2"', "--", name, str(self.pid)], check=True)
+    def signal(self, name, group=False):
+        target = ("-" if group else "") + str(self.pid)
+        # MSYS killpg can report ESRCH after delivering to processes that exit
+        # during its iteration; wait() below verifies delivery and cleanup.
+        subprocess.run([SHELL, "-c", 'kill "-$1" -- "$2"', "--", name, target],
+                       check=not (os.name == "nt" and group), stderr=subprocess.PIPE)
 
     def wait(self, expected, timeout=4):
         status = self.process.wait(timeout=timeout)
@@ -150,8 +154,12 @@ class Fixture:
 
     def close(self):
         if self.process.poll() is None:
-            subprocess.run([SHELL, "-c", 'kill -KILL -- "-$1"', "--", str(self.pid)], check=False)
-            self.process.wait(timeout=3)
+            self.signal("TERM")
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                subprocess.run([SHELL, "-c", 'kill -KILL -- "-$1"', "--", str(self.pid)], check=False)
+                self.process.wait(timeout=3)
         self.log.close()
         self.temp.cleanup()
 
@@ -165,9 +173,9 @@ def verify(label, action, failure=None):
         fixture.close()
 
 
-def stop_test(fixture, name):
+def stop_test(fixture, name, group=False):
     fixture.ready()
-    fixture.signal(name)
+    fixture.signal(name, group)
     fixture.wait(0)
 
 
@@ -191,6 +199,7 @@ def queue_test(fixture):
 if __name__ == "__main__":
     for name in ("TERM", "INT"):
         verify("clean " + name + " shutdown", lambda f, n=name: stop_test(f, n))
+        verify("clean group " + name + " shutdown", lambda f, n=name: stop_test(f, n, True))
     for name, status in (("php-fpm", 0), ("php-fpm", 6), ("caddy", 7), ("workerman", 9), ("crond", 8)):
         verify(name + " exit " + str(status) + " stops all processes",
                lambda f, n=name, s=status: crash_test(f, n, s))
