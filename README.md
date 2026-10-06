@@ -23,7 +23,26 @@
 
 应用镜像运行 PHP-FPM、队列、WebSocket 和日志维护，不包含 Nginx 或 Redis 服务。Compose 中不再启动 Redis；默认使用文件缓存，如需外部 Redis，在管理后台填写容器可访问的连接地址、端口、密码和数据库编号。镜像保留用于连接外部 Redis 的 PHP 客户端扩展。
 
-PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。`.env` 只填写数据库连接，配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
+PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。Docker 部署直接修改 Compose 文件中应用服务的 `environment`，无需创建或挂载 `.env`：
+
+```yaml
+services:
+  emby-controller:
+    environment:
+      DB_DRIVER: "mysql"
+      DB_TYPE: "mysql"
+      DB_HOST: "your-mysql-host"
+      DB_NAME: "randallanjie"
+      DB_USER: "root"
+      DB_PASS: "replace-with-your-database-password"
+      DB_PORT: "3306"
+      DB_CHARSET: "utf8mb4"
+      DB_PREFIX: "rc_"
+```
+
+以上片段对应连接外部 MySQL 的 `docker-compose.yml`，启动前必须填写容器可访问的实际数据库地址及账号密码。使用 `docker-compose-all-1.yml` 或 `docker-compose-all-2.yml` 内置数据库时，应用的连接信息必须与数据库服务的数据库名、账号和密码一致。Compose 中密码包含 `$` 时写成 `$$`，以传入字面的 `$`。
+
+`quickstart.sh` 只使用 Docker Compose 部署，优先使用 `docker compose`，兼容已有的 `docker-compose`。脚本仅在缺少配置文件时下载 `docker-compose.yml`，保留已有文件，并在启动前提示编辑数据库配置。配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
 
 启动应用后，将镜像中的静态文件导出到宿主机；以下示例在原 Compose 部署目录执行，文件名按实际部署替换：
 
@@ -33,7 +52,7 @@ sudo mkdir -p /srv/emby-controller/public
 sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/app/public/." /srv/emby-controller/public/
 ```
 
-如使用 `quickstart.sh` 的独立 Docker 容器，复制命令改为 `sudo docker cp emby-controller:/app/public/. /srv/emby-controller/public/`。导出目录需允许 Nginx 用户读取；每次更新镜像后同步静态文件。
+导出目录需允许 Nginx 用户读取；每次更新镜像后同步静态文件。`quickstart.sh` 下载的部署配置位于执行目录下的 `EmbyController` 文件夹，上述命令应在该文件夹执行。
 
 将 [docker/nginx.conf](docker/nginx.conf) 作为宿主机 Nginx 站点配置，按需修改域名、监听端口、TLS 和 `root` 目录，再执行 `nginx -t` 并重载。示例监听 8018，通过 FastCGI 将 PHP 请求交给容器，并将同域 `/ws` 转发至 2347；`SCRIPT_FILENAME` 必须保留容器内的 `/app/public` 路径。Nginx 的访问日志和错误日志由宿主机管理。
 
@@ -43,15 +62,17 @@ sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/a
 
 环境变量只保留 `DB_DRIVER`、`DB_TYPE`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS`、`DB_PORT`、`DB_CHARSET`、`DB_PREFIX`。网站标题、副标题、描述、关键词、Logo、图标、页脚，以及网站地址、Emby、线路、Telegram、邮件、支付、缓存、代理和 AI 等配置统一在后台“系统设置”填写，保存到现有数据库配置表（默认 `rc_config`）。
 
-首次部署先运行数据库迁移，使用初始管理员 `admin/A123456` 登录并修改密码，再在后台填写网站地址、Emby 连接及所需服务。未填写的可选服务保持关闭。定时任务密钥会自动初始化为随机值；密钥和密码在后台只显示是否已配置，留空保存会保留已有值，需要删除时勾选“清除已保存内容”。定时任务密钥的对应选项为“重置为随机密钥”，重置后仍保持已配置，原有 Webhook 调用方需更新密钥。
+Docker 启动脚本会自动运行数据库迁移并初始化后台设置。使用初始管理员 `admin/A123456` 登录并修改密码，再在后台填写网站地址、Emby 连接及所需服务。未填写的可选服务保持关闭。定时任务密钥会自动初始化为随机值；密钥和密码在后台只显示是否已配置，留空保存会保留已有值，需要删除时勾选“清除已保存内容”。定时任务密钥的对应选项为“重置为随机密钥”，重置后仍保持已配置，原有 Webhook 调用方需更新密钥。
 
-升级旧部署时，保留原 `.env`，先确保数据库可用。应用首次初始化会从旧环境变量导入数据库中尚未配置的项目，不覆盖已有后台设置；也可在项目目录手动执行一次：
+升级旧 Docker 部署时，应在切换新的 Compose 配置、移除旧 `.env` 前完成导入。先保留原部署中的 `.env` 挂载，使用支持 `settings:import-env` 的新版镜像启动一次；启动脚本会在补齐默认设置前从旧文件导入数据库中尚未配置的项目。仍使用原部署配置时，也可手动执行：
 
 ```sh
-php think settings:import-env
+docker compose -f docker-compose.yml exec emby-controller php think settings:import-env
 ```
 
-Docker 部署可执行 `docker compose -f docker-compose.yml exec emby-controller php think settings:import-env`，文件名按实际部署替换。确认后台配置完整后，备份旧 `.env`，再删除其中的非数据库配置。导入后的服务配置以数据库为准，修改旧环境变量不再覆盖后台设置。
+文件名按原部署替换。确认后台配置完整后，备份旧 `.env`，把九项数据库连接写入新 Compose 的 `environment`，删除原 `env_file` 和 `.env` 挂载，再重建容器。导入只补齐缺少的项目，不覆盖已有后台设置；如果已在没有旧配置的情况下初始化了默认值，请在后台校正相关设置。导入后的服务配置以数据库为准，修改旧环境变量不再覆盖后台设置。
+
+非 Docker 的本地开发或旧部署可在项目目录运行 `php think settings:import-env`，也可用 `php think settings:import-env --file=/实际路径/旧配置.env` 指定旧配置文件。
 
 后台保存后，新请求立即使用最新配置，Workerman 会在约 5 秒内同步。缓存或队列连接切换的生效方式见后台对应设置说明。
 
@@ -59,7 +80,7 @@ Docker 部署可执行 `docker compose -f docker-compose.yml exec emby-controlle
 
 ### 日志容量限制
 
-项目提供的 Docker Compose 文件和 `quickstart.sh` 已为容器的标准输出/错误日志启用轮转：使用 `json-file`，单个日志文件最大 `10m`，最多保留 `3` 个文件，每个容器约占用 30 MB。超过限额后会自动清理最旧的日志。
+项目提供的 Docker Compose 文件已为容器的标准输出/错误日志启用轮转，`quickstart.sh` 使用同一配置：使用 `json-file`，单个日志文件最大 `10m`，最多保留 `3` 个文件，每个容器约占用 30 MB。超过限额后会自动清理最旧的日志。
 
 容器内的 ThinkPHP（含子应用和月份目录）、定时任务、WebSocket 和 Workerman 文件日志在启动时及每分钟检查一次：每天或超过 10 MiB 时轮转，每个文件最多保留 3 份压缩归档，停止写入满 7 天的应用日志及归档自动清理。10 MiB 是检查阈值，检查间隔内文件仍可能暂时超过该大小；文件日志使用 `copytruncate`，复制与截断之间可能丢失少量并发记录。构建镜像时排除运行日志。
 
@@ -71,17 +92,9 @@ Docker 部署可执行 `docker compose -f docker-compose.yml exec emby-controlle
 docker compose -f docker-compose.yml up -d --force-recreate
 ```
 
-使用独立 Docker 容器时，先记录原有端口、环境配置和数据挂载，再停止并移除旧容器，使用原参数重建并增加 `--log-driver json-file --log-opt max-size=10m --log-opt max-file=3`。以下示例适用于 `quickstart.sh` 创建的容器；如有额外挂载，请一并保留：
+历史独立 Docker 容器需先记录原有端口、环境配置和数据挂载，再使用原参数重建并增加 `--log-driver json-file --log-opt max-size=10m --log-opt max-file=3`；也可先完成旧配置导入，再改用 Compose 管理。
 
-```sh
-docker stop emby-controller
-docker rm emby-controller
-docker run -d -p 127.0.0.1:9000:9000 -p 127.0.0.1:2347:2347 --name emby-controller \
-  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
-  --env-file .env -v "$(pwd)/.env:/app/.env" ghcr.io/jkjoy/emby-controller:latest
-```
-
-重新创建时保留现有 `.env` 文件和数据挂载，不要删除数据库目录或数据卷。原 Compose 创建的 Redis 容器及数据不会自动删除；确认外部 Redis 已迁移或使用文件缓存后，可自行停止旧 Redis 容器。
+重新创建时保留现有数据库连接和数据挂载，不要删除数据库目录或数据卷。原 Compose 创建的 Redis 容器及数据不会自动删除；确认外部 Redis 已迁移或使用文件缓存后，可自行停止旧 Redis 容器。
 
 ## 功能
 
@@ -157,6 +170,8 @@ docker run -d -p 127.0.0.1:9000:9000 -p 127.0.0.1:2347:2347 --name emby-controll
 
 
 ## 开发
+
+以下步骤用于非 Docker 的本地开发；Docker 的数据库配置直接写入 Compose `environment`。
 
 1. **克隆仓库**：
     ```sh

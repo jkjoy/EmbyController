@@ -6,7 +6,7 @@
 vendor
 node_modules
 
-# 运行时与本地敏感文件（不应打进镜像，.env 在运行时挂载）
+# 运行时与本地敏感文件（.env 仅用于本地开发/旧配置迁移；Docker 数据库配置由 Compose 注入）
 runtime/*
 app/runtime/log
 .env

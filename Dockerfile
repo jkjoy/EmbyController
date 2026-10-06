@@ -77,6 +77,7 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
         -e 's/max_execution_time = 30/max_execution_time = 60/g' \
         -e 's/upload_max_filesize = 2M/upload_max_filesize = 20M/g' \
         -e 's/post_max_size = 8M/post_max_size = 20M/g' \
+        -e 's/variables_order = "GPCS"/variables_order = "EGPCS"/g' \
         "$PHP_INI_DIR/php.ini"
 
 # 准备运行时目录，并清理不需要打进镜像的内容

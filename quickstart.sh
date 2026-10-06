@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Function to check if a command exists
 command_exists() {
@@ -17,7 +18,13 @@ install_docker() {
 # Function to install Docker Compose
 install_docker_compose() {
   echo "正在安装 Docker Compose..."
-  sudo curl -L "https://github.com/docker/compose/releases/download/$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  compose_release=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+  if [ -z "$compose_release" ]; then
+    echo "无法获取 Docker Compose 版本。退出。"
+    exit 1
+  fi
+  compose_platform=$(uname -s | tr '[:upper:]' '[:lower:]')
+  sudo curl -fL "https://github.com/docker/compose/releases/download/$compose_release/docker-compose-$compose_platform-$(uname -m)" -o /usr/local/bin/docker-compose
   sudo chmod +x /usr/local/bin/docker-compose
   echo "Docker Compose 安装完成。"
 }
@@ -25,8 +32,8 @@ install_docker_compose() {
 # Check if Docker is installed
 if ! command_exists docker; then
   echo "Docker 未安装。"
-  read -p "是否安装 Docker? (y/n): " install_docker_choice
-  if [ "$install_docker_choice" = "y" ]; then
+  read -r -p "是否安装 Docker? (y/n): " install_docker_choice
+  if [[ "$install_docker_choice" =~ ^[Yy]$ ]]; then
     install_docker
   else
     echo "Docker 是必须的。退出。"
@@ -34,12 +41,17 @@ if ! command_exists docker; then
   fi
 fi
 
-# Check if Docker Compose is installed
-if ! command_exists docker-compose; then
+# 优先使用 Docker Compose v2，也兼容已有的独立 docker-compose。
+if docker compose version >/dev/null 2>&1; then
+  compose_command=(docker compose)
+elif command_exists docker-compose; then
+  compose_command=(docker-compose)
+else
   echo "Docker Compose 未安装。"
-  read -p "是否安装 Docker Compose? (y/n): " install_docker_compose_choice
-  if [ "$install_docker_compose_choice" = "y" ]; then
+  read -r -p "是否安装 Docker Compose? (y/n): " install_docker_compose_choice
+  if [[ "$install_docker_compose_choice" =~ ^[Yy]$ ]]; then
     install_docker_compose
+    compose_command=(docker-compose)
   else
     echo "Docker Compose 是必须的。退出。"
     exit 1
@@ -50,30 +62,27 @@ fi
 mkdir -p EmbyController
 cd EmbyController
 
-# 下载 .env 文件
-curl -o .env https://raw.githubusercontent.com/jkjoy/EmbyController/refs/heads/main/example.env
-
-# 下载 docker-compose.yml 文件
-curl -o docker-compose.yml https://raw.githubusercontent.com/jkjoy/EmbyController/refs/heads/main/docker-compose.yml
-
-# 让用户选择使用 Docker 还是 Docker Compose
-while true; do
-  echo "请选择创建容器的方法:"
-  echo "1) Docker"
-  echo "2) Docker Compose"
-  read -p "请输入你的选择 (1 或 2): " choice
-
-  if [ "$choice" -eq 1 ]; then
-    # 使用 Docker 创建容器
-    docker run -d -p 127.0.0.1:9000:9000 -p 127.0.0.1:2347:2347 --name emby-controller --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 --env-file .env -v $(pwd)/.env:/app/.env ghcr.io/jkjoy/emby-controller:latest
-    break
-  elif [ "$choice" -eq 2 ]; then
-    # 使用 Docker Compose 创建容器
-    docker-compose up -d
-    break
-  else
-    echo "无效的选择。请重新选择。"
+# 已有部署配置保持原样，首次下载使用临时文件避免网络失败留下残缺配置。
+if [ -e docker-compose.yml ]; then
+  echo "保留现有 docker-compose.yml。"
+else
+  compose_download_tmp=$(mktemp ./docker-compose.yml.XXXXXX)
+  if ! curl -fsSL https://raw.githubusercontent.com/jkjoy/EmbyController/refs/heads/main/docker-compose.yml -o "$compose_download_tmp"; then
+    rm -f "$compose_download_tmp"
+    echo "下载 docker-compose.yml 失败。退出。"
+    exit 1
   fi
-done
+  mv -n "$compose_download_tmp" docker-compose.yml
+  rm -f "$compose_download_tmp"
+fi
 
-echo "请先修改.env中的数据库连接后重启容器，配置外部Nginx连接9000端口、代理2347端口的/ws，再登录管理后台填写网站地址、Emby及其它服务设置。"
+echo "请先编辑 $(pwd)/docker-compose.yml 中 emby-controller 的 environment，填写实际数据库连接信息。"
+echo "本脚本使用 Docker Compose 部署，数据库配置直接写在 Compose 文件中。"
+echo "如升级旧部署，请先按 README 导入旧业务配置，再切换新的 Compose 配置。"
+read -r -p "完成编辑后是否启动? (y/n): " start_choice
+if [[ "$start_choice" =~ ^[Yy]$ ]]; then
+  "${compose_command[@]}" -f docker-compose.yml up -d
+  echo "容器已启动。请配置外部 Nginx 连接 9000 端口、代理 2347 端口的 /ws，再登录管理后台填写网站地址、Emby 及其它服务设置。"
+else
+  echo "配置保存后，在 $(pwd) 执行: ${compose_command[*]} -f docker-compose.yml up -d"
+fi

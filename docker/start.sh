@@ -7,10 +7,10 @@ echo "[$(date)] Starting initialization..."
 echo "Setting up permissions..."
 mkdir -p /app/runtime/log/
 
-# 更改除 /app/.env 外的文件权限（批量 chown，避免每个文件 fork 一次进程拖慢启动）
-find /app -path /app/.env -prune -o -print0 | xargs -0 chown www-data:www-data
+# 批量更改文件权限，避免每个文件 fork 一次进程拖慢启动。
+find /app -print0 | xargs -0 chown www-data:www-data
 
-# PHP 框架读取数据库 .env；旧业务配置由 settings:import-env 专门解析。
+# 数据库连接由 Compose 注入进程环境；旧业务配置由 settings:import-env 专门解析。
 
 chmod -R 755 /app/runtime
 

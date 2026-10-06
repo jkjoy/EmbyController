@@ -6,10 +6,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    env_file:
-      - .env
-    volumes:
-      - ./.env:/app/.env
+    # 与下方 db 服务的数据库名、密码保持一致。
+    environment:
+      DB_DRIVER: "mysql"
+      DB_TYPE: "mysql"
+      DB_HOST: "db"
+      DB_NAME: "emby"
+      DB_USER: "root"
+      DB_PASS: "emby"
+      DB_PORT: "3306"
+      DB_CHARSET: "utf8mb4"
+      DB_PREFIX: "rc_"
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:2347:2347"
