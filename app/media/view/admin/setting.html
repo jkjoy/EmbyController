@@ -521,6 +521,7 @@ function initTagManager(inputId, tagsContainerId, hiddenInputId, initialTags = [
     if (initialTags && initialTags.length) {
         initialTags.forEach(tag => createTag(tag));
     }
+    updateHiddenInput();
 }
 
 // 修改初始化Telegram规则函数
