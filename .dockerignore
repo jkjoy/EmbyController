@@ -8,11 +8,13 @@ node_modules
 
 # 运行时与本地敏感文件（不应打进镜像，.env 在运行时挂载）
 runtime/*
+app/runtime/log
 .env
 
 # 文档、演示数据、编辑器配置
 docs
 docker/*.sql
+docker/nginx.conf
 *.md
 .idea
 .vscode

@@ -51,10 +51,10 @@ mkdir -p EmbyController
 cd EmbyController
 
 # 下载 .env 文件
-curl -o .env https://raw.githubusercontent.com/RandallAnjie/EmbyController/refs/heads/main/example.env
+curl -o .env https://raw.githubusercontent.com/jkjoy/EmbyController/refs/heads/main/example.env
 
 # 下载 docker-compose.yml 文件
-curl -o docker-compose.yml https://raw.githubusercontent.com/RandallAnjie/EmbyController/refs/heads/main/docker-compose.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/jkjoy/EmbyController/refs/heads/main/docker-compose.yml
 
 # 让用户选择使用 Docker 还是 Docker Compose
 while true; do
@@ -65,7 +65,7 @@ while true; do
 
   if [ "$choice" -eq 1 ]; then
     # 使用 Docker 创建容器
-    docker run -d -p 8018:8018 --name emby-controller --env-file .env -v $(pwd)/.env:/app/.env ranjie/emby-controller:latest
+    docker run -d -p 127.0.0.1:9000:9000 -p 127.0.0.1:2347:2347 --name emby-controller --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 --env-file .env -v $(pwd)/.env:/app/.env ghcr.io/jkjoy/emby-controller:latest
     break
   elif [ "$choice" -eq 2 ]; then
     # 使用 Docker Compose 创建容器
@@ -76,4 +76,4 @@ while true; do
   fi
 done
 
-echo "请修改.env文件后重启容器。"
+echo "请修改.env中的数据库连接和APP_HOST后重启容器，并配置外部Nginx连接9000端口、代理2347端口的/ws。"

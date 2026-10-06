@@ -1250,12 +1250,8 @@ function checkBetResult() {
 }
 
 function runCrontab() {
-    // 如果在容器中运行，就访问127.0.0.1:8018，否则访问 APP_HOST = https://randallanjie.com
-    if (RUN_IN_DOCKER) {
-        $host = 'http://127.0.0.1:8018';
-    } else {
-        $host = APP_HOST;
-    }
+    // HTTP 服务由外部 Nginx 提供，通过配置的站点地址执行定时任务。
+    $host = APP_HOST;
     // 去掉末尾的斜杠
     $host = rtrim($host, '/');
     $url = $host . '/media/server/crontab?crontabkey=' . CRONTAB_KEY;
@@ -1284,6 +1280,11 @@ function runCrontab() {
  */
 function cleanupLogFiles()
 {
+    // 已配置日志轮转的容器由 logrotate 统一维护，避免两个任务同时截断文件。
+    if (is_file('/etc/emby-controller/logrotate.conf')) {
+        return;
+    }
+
     $logDir = __DIR__ . '/runtime/log';
     if (!is_dir($logDir)) {
         return;
@@ -1359,4 +1360,4 @@ function checkConfigDatabase()
 }
 
 // 启动所有服务器
-Worker::runAll(); 
+Worker::runAll();

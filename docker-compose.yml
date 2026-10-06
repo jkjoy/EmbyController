@@ -2,10 +2,16 @@ version: '3.8'
 
 services:
   emby-controller:
-    image: ranjie/emby-controller:latest
+    image: ghcr.io/jkjoy/emby-controller:latest
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file:
       - .env
     volumes:
       - ./.env:/app/.env
     ports:
-      - "8018:8018"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:2347:2347"

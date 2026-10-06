@@ -1,0 +1,4 @@
+# Alpine 容器中的脚本和日志维护配置使用 LF。
+*.sh text eol=lf
+docker/logrotate.conf text eol=lf
+docker/logrotate.cron text eol=lf

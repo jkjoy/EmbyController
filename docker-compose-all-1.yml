@@ -2,7 +2,12 @@ version: '3.8'
 
 services:
   emby-controller:
-    image: ranjie/emby-controller:latest
+    image: ghcr.io/jkjoy/emby-controller:latest
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: emby-controller
     restart: unless-stopped
     env_file:
@@ -10,15 +15,20 @@ services:
     volumes:
       - ./.env:/app/.env
     ports:
-      - "8018:8018"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:2347:2347"
     depends_on:
       - mysql
-      - redis
     networks:
       - emby-network
 
   mysql:
     image: mysql:8.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: emby-mysql
     restart: unless-stopped
     environment:
@@ -32,21 +42,9 @@ services:
     networks:
       - emby-network
 
-  redis:
-    image: redis:latest
-    container_name: emby-redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - emby-network
-
 networks:
   emby-network:
     driver: bridge
 
 volumes:
   mysql_data:
-  redis_data:

@@ -1,17 +1,27 @@
 services:
   emby-controller:
-    image: emby
+    image: ghcr.io/jkjoy/emby-controller:latest
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file:
       - .env
     volumes:
       - ./.env:/app/.env
     ports:
-      - "8018:8018"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:2347:2347"
     depends_on:
       - db
-      - redis
   db:
     image: mysql:8.1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
     command:
       - --character-set-server=utf8mb4
@@ -22,10 +32,3 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=emby
       - MYSQL_DATABASE=emby
-  redis:
-    restart: always
-    image: redis:7-alpine
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-    volumes:
-      - ./redis:/data

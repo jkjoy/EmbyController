@@ -31,7 +31,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     zip \
     opcache
 
-# 安装Redis扩展
+# 安装连接外部 Redis 的 PHP 客户端扩展，不安装 Redis 服务
 RUN pecl install redis \
     && docker-php-ext-enable redis
 
@@ -80,7 +80,7 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
         "$PHP_INI_DIR/php.ini"
 
 # 准备运行时目录，并清理不需要打进镜像的内容
-# （/app/docker 里的 nginx.conf/start.sh/www.conf 已单独 COPY 到系统目录，源码副本无需保留）
+# （运行时脚本与配置会在最终阶段单独 COPY 到系统目录，源码副本无需保留）
 RUN mkdir -p /app/runtime/log/ \
     && rm -rf /app/docker \
     && chmod -R 755 /app \
@@ -91,7 +91,8 @@ FROM php:8.3-fpm-alpine
 
 # 安装运行时依赖
 RUN apk add --no-cache \
-    nginx \
+    fcgi \
+    logrotate \
     libpng \
     libjpeg \
     freetype \
@@ -107,23 +108,28 @@ COPY --from=builder /usr/local/etc/php/php.ini /usr/local/etc/php/php.ini
 COPY --from=builder /app /app
 
 # 复制配置文件
-COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 COPY docker/start.sh /start.sh
 COPY docker/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/logrotate.conf /etc/emby-controller/logrotate.conf
+COPY docker/rotate-logs.sh /usr/local/bin/emby-rotate-logs
+COPY docker/logrotate.cron /etc/emby-controller/crontabs/root
 
 # 设置权限和工作目录
 WORKDIR /app
 RUN chmod +x /start.sh \
+    && chmod +x /usr/local/bin/emby-rotate-logs \
+    && chmod 644 /etc/emby-controller/logrotate.conf /etc/emby-controller/crontabs/root \
+    && mkdir -p /var/lib/logrotate \
     && chown -R www-data:www-data /app \
-    && mkdir -p /var/run/nginx \
     && chmod -R 755 /app/runtime
 
 # 暴露端口
-EXPOSE 8018 2347 2348
+EXPOSE 9000 2347
 
-# 健康检查
+# 使用 FastCGI 检查 PHP-FPM，不依赖外部 Nginx
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8018/ping || exit 1
+    CMD SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET \
+        cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q '^pong'
 
 # 启动命令
 CMD ["/start.sh"]

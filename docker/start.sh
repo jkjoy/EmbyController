@@ -20,6 +20,11 @@ fi
 
 chmod -R 755 /app/runtime
 
+# 启动前处理已堆积的文件日志，并每分钟检查轮转
+echo "Starting log rotation..."
+/usr/local/bin/emby-rotate-logs
+crond -f -l 8 -L /dev/stderr -c /etc/emby-controller/crontabs &
+
 # 运行数据库迁移
 # 检查是否存在迁移文件
 if [ -d "/app/database/migrations" ] && [ "$(ls -A /app/database/migrations)" ]; then
@@ -36,10 +41,6 @@ php-fpm -D
 # 判断条件并启动队列
 echo "Starting Queue in background..."
     php /app/think queue:work --queue main --tries 3 --sleep 5 &
-
-# 启动Nginx
-echo "Starting Nginx..."
-nginx -g "daemon on;" &
 
 # 启动GatewayWorker
 echo "Starting GatewayWorker..."
