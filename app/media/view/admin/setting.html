@@ -105,20 +105,20 @@
     <!-- 后台管理的服务连接和个性化配置 -->
     {foreach $settingSections as $sectionLabel => $fields}
     <details class="border-t border-white/10 pt-5">
-        <summary class="cursor-pointer text-xl font-semibold">{$sectionLabel|htmlentities}</summary>
+        <summary class="cursor-pointer text-xl font-semibold">{$sectionLabel}</summary>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
             {foreach $fields as $field}
             <div class="space-y-2 {if $field['type'] == 'json' || $field['type'] == 'textarea'}md:col-span-2{/if}">
-                <label for="system-setting-{$field.key}" class="block text-white-400">{$field.label|htmlentities}</label>
+                <label for="system-setting-{$field.key}" class="block text-white-400">{$field.label}</label>
                 {if $field['secret']}
                     {if $field['type'] == 'json'}
                     <textarea id="system-setting-{$field.key}" name="{$field.key}" rows="6"
-                              data-system-setting data-setting-type="json" data-setting-secret="1" data-setting-label="{$field.label|htmlentities}"
+                              data-system-setting data-setting-type="json" data-setting-secret="1" data-setting-label="{$field.label}"
                               placeholder="填写完整 JSON 以更新，留空保留现有内容"
                               autocomplete="off" class="w-full bg-white/10 rounded-lg px-4 py-2 font-mono text-sm"></textarea>
                     {else/}
                     <input id="system-setting-{$field.key}" type="password" name="{$field.key}" value=""
-                           data-system-setting data-setting-type="secret" data-setting-secret="1" data-setting-label="{$field.label|htmlentities}"
+                           data-system-setting data-setting-type="secret" data-setting-secret="1" data-setting-label="{$field.label}"
                            placeholder="填写新密钥以更新，留空保留现有内容"
                            autocomplete="new-password" class="w-full bg-white/10 rounded-lg px-4 py-2">
                     {/if}
@@ -141,12 +141,12 @@
                             {if !empty($field['disabled'])}disabled{/if}
                             class="w-full bg-white/10 rounded-lg px-4 py-2">
                         {foreach $field['options'] as $optionValue => $optionLabel}
-                        <option value="{$optionValue|htmlentities}" {if (string)($settings[$field['key']] ?? '') === (string)$optionValue}selected{/if}>{$optionLabel|htmlentities}</option>
+                        <option value="{$optionValue}" {if (string)($settings[$field['key']] ?? '') === (string)$optionValue}selected{/if}>{$optionLabel}</option>
                         {/foreach}
                     </select>
                 {elseif $field['type'] == 'json' || $field['type'] == 'textarea'/}
                     <textarea id="system-setting-{$field.key}" name="{$field.key}" rows="6"
-                              data-system-setting data-setting-type="{$field.type}" data-setting-label="{$field.label|htmlentities}"
+                              data-system-setting data-setting-type="{$field.type}" data-setting-label="{$field.label}"
                               class="w-full bg-white/10 rounded-lg px-4 py-2 {if $field['type'] == 'json'}font-mono text-sm{/if}">{$settings[$field['key']] ?? ''}</textarea>
                 {else/}
                     <input id="system-setting-{$field.key}" name="{$field.key}"
@@ -154,7 +154,7 @@
                            value="{$settings[$field['key']] ?? ''}" data-system-setting
                            class="w-full bg-white/10 rounded-lg px-4 py-2">
                 {/if}
-                {if !empty($field['help'])}<p class="text-sm text-gray-400">{$field.help|htmlentities}</p>{/if}
+                {if !empty($field['help'])}<p class="text-sm text-gray-400">{$field.help}</p>{/if}
             </div>
             {/foreach}
         </div>
