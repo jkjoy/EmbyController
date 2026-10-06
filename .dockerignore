@@ -10,6 +10,11 @@ node_modules
 runtime/*
 app/runtime/log
 .env
+# Compose 中直接填写数据库连接，部署文件无需进入应用镜像。
+docker-compose*.yml
+docker-compose*.yaml
+compose.yml
+compose.yaml
 
 # 文档、演示数据、编辑器配置
 docs
