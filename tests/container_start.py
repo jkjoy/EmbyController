@@ -6,6 +6,7 @@ production files, database, or runtime configuration is used by these tests.
 
 import os
 from pathlib import Path
+import signal
 import subprocess
 import tempfile
 import time
@@ -136,6 +137,10 @@ class Fixture:
         write(self.root / ("fail-" + name), str(status))
 
     def signal(self, name, group=False):
+        if os.name != "nt":
+            sender = os.killpg if group else os.kill
+            sender(self.pid, getattr(signal, "SIG" + name))
+            return
         target = ("-" if group else "") + str(self.pid)
         # MSYS killpg can report ESRCH after delivering to processes that exit
         # during its iteration; wait() below verifies delivery and cleanup.
@@ -158,7 +163,10 @@ class Fixture:
             try:
                 self.process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                subprocess.run([SHELL, "-c", 'kill -KILL -- "-$1"', "--", str(self.pid)], check=False)
+                if os.name != "nt":
+                    os.killpg(self.pid, signal.SIGKILL)
+                else:
+                    subprocess.run([SHELL, "-c", 'kill -KILL -- "-$1"', "--", str(self.pid)], check=False)
                 self.process.wait(timeout=3)
         self.log.close()
         self.temp.cleanup()
