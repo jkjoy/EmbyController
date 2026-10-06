@@ -22,8 +22,7 @@ services:
       DB_CHARSET: "utf8mb4"
       DB_PREFIX: "rc_"
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:2347:2347"
+      - "8018:8018"
     depends_on:
       - mysql
     networks:

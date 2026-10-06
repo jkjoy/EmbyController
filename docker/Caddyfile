@@ -1,0 +1,61 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+	storage file_system {
+		root /app/runtime/caddy
+	}
+}
+
+# 容器内 HTTP 入口；域名与 HTTPS 可由外部反向代理提供。
+:8018 {
+	root * /app/public
+	log {
+		output stdout
+		format json
+	}
+
+	route {
+		request_body {
+			max_size 20971520
+		}
+
+		@hidden path_regexp hidden (^|/)\.
+		respond @hidden 404
+
+		# 只允许前端入口执行，其他 PHP 文件及其路径信息均不可访问。
+		@other_php {
+			path_regexp php (?i)\.php(?:/|$|\.)
+			not path /index.php /index.php/*
+		}
+		respond @other_php 404
+
+		@websocket path /ws
+		reverse_proxy @websocket 127.0.0.1:2347
+
+		# 请求环境来自当前连接，避免客户端伪造影响登录 IP 或生成的 URL。
+		request_header X-Real-IP {http.vars.client_ip}
+		@untrusted expression !{http.vars.trusted_proxy}
+		request_header @untrusted X-Forwarded-Port {http.request.port}
+		request_header -CF-Connecting-IP
+		request_header -X-Rewrite-URL
+
+		@home path /
+		rewrite @home /index.php
+
+		@dynamic {
+			not file {path} {path}/
+			not path /index.php /index.php/*
+		}
+		rewrite @dynamic /index.php{path}
+
+		@front_controller path /index.php /index.php/*
+		reverse_proxy @front_controller 127.0.0.1:9000 {
+			transport fastcgi {
+				split .php
+			}
+		}
+
+		file_server
+	}
+}

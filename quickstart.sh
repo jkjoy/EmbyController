@@ -83,7 +83,8 @@ echo "如升级旧部署，请先按 README 导入旧业务配置，再切换新
 read -r -p "是否使用当前 Compose 配置启动? (y/n): " start_choice
 if [[ "$start_choice" =~ ^[Yy]$ ]]; then
   "${compose_command[@]}" -f docker-compose.yml up -d
-  echo "容器已启动。请配置外部 Nginx 连接 9000 端口、代理 2347 端口的 /ws，再登录管理后台填写网站地址、Emby 及其它服务设置。"
+  echo "容器已启动。新配置可直接访问 http://服务器IP:8018/media/user/login；已有 Compose 请按 README 添加 HTTP 端口映射。"
+  echo "请在后台填写实际网站地址（含端口）、Emby 及其它服务设置。"
 else
   echo "配置保存后，在 $(pwd) 执行: ${compose_command[*]} -f docker-compose.yml up -d"
 fi

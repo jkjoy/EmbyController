@@ -1195,7 +1195,7 @@ function checkBetResult() {
 }
 
 function runCrontab() {
-    // HTTP 服务由外部 Nginx 提供，通过配置的站点地址执行定时任务。
+    // 通过配置的站点地址执行定时任务。
     $host = (string) Config::get('app.app_host', '');
     $key = (string) Config::get('media.crontabKey', '');
     if ($host === '' || $key === '') {

@@ -103,6 +103,7 @@ RUN apk add --no-cache \
     fcgi \
     logrotate \
     su-exec \
+    tini \
     sqlite-libs \
     libpng \
     libjpeg \
@@ -117,10 +118,12 @@ COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
 COPY --from=builder /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY --from=builder /usr/local/etc/php/php.ini /usr/local/etc/php/php.ini
 COPY --from=builder /app /app
+COPY --from=caddy:2-alpine /usr/bin/caddy /usr/bin/caddy
 
 # 复制配置文件
 COPY docker/start.sh /start.sh
 COPY docker/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/logrotate.conf /etc/emby-controller/logrotate.conf
 COPY docker/rotate-logs.sh /usr/local/bin/emby-rotate-logs
 COPY docker/logrotate.cron /etc/emby-controller/crontabs/root
@@ -140,13 +143,19 @@ RUN php-fpm -t \
     && su-exec www-data:www-data php tests/sqlite_migrations.php \
     && su-exec www-data:www-data php tests/sqlite_business.php
 
-# 暴露端口
-EXPOSE 9000 2347
+# 在最终镜像验证真实 HTTP、FastCGI 与同域 WebSocket；Python 仅用于构建测试。
+RUN apk add --no-cache --virtual .http-check python3 \
+    && python3 tests/container_start.py \
+    && su-exec www-data:www-data python3 tests/http_entrypoint.py \
+    && apk del .http-check
 
-# 使用 FastCGI 检查 PHP-FPM，不依赖外部 Nginx
+# 默认网站端口；9000/2347 留在容器内部，也可由旧部署显式映射。
+EXPOSE 8018
+
+# 检查真实 HTTP 登录页面，覆盖 Caddy 和 PHP-FPM。
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET \
-        cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q '^pong'
+    CMD wget -q -O /dev/null http://127.0.0.1:8018/media/user/login
 
 # 启动命令
+ENTRYPOINT ["/sbin/tini", "-g", "--"]
 CMD ["/start.sh"]
