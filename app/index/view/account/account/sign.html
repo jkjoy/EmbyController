@@ -5,7 +5,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{:config('app.app_name')}——第三方签到</title>
+    <title>{:siteTitle('第三方签到')}</title>
+    {include file='public/_meta' /}
     {if condition="$sitekey && $sitekey != ''"}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" defer></script>
     {/if}
@@ -217,5 +218,6 @@
     updateTime();
     setInterval(updateTime, 1000);
 </script>
+{include file='public/_footer' /}
 </body>
 </html>

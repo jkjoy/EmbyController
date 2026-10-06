@@ -1,7 +1,7 @@
 <?php
 return [
     // 默认缓存驱动
-    'default' => env('CACHE_TYPE', '') == 'redis' ? 'redis' : 'sync',
+    'default' => 'sync',
 
     // 缓存连接方式配置
     'connections' => [
@@ -13,16 +13,16 @@ return [
         // 配置Redis
         'redis'    =>    [
             'type'     => 'redis',
-            'host'     => env('REDIS_HOST', '127.0.0.1'),
-            'port'     => env('REDIS_PORT', 6379),
-            'password' => env('REDIS_PASS', ''),
-            'select'   => '0',
+            'host'     => '127.0.0.1',
+            'port'     => 6379,
+            'password' => '',
+            'select'   => 0,
             'expire'   => 0,
             'prefix'   => '',
-            'timeout'  => 0,
+            'timeout'  => 3,
             'persistent' => false,
             'queue'    => 'telegram',
-            'db'       => env('REDIS_DB', 0),
+            'db'       => 0,
         ],
     ],
-]; 
+];

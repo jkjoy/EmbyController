@@ -1028,7 +1028,7 @@ class Server extends BaseController
         // 获取get参数
         $data = Request::get();
         // 判断是否有参数
-        if (isset($data['crontabkey']) && $data['crontabkey'] == Config::get('media.crontabKey')) {
+        if (verifyCrontabKey($data['crontabkey'] ?? null)) {
             $actionCount = 0;
             $finishCount = 0;
             $errorCount = 0;

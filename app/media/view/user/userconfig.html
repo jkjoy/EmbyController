@@ -51,7 +51,7 @@
 <!-- 欢迎信息 -->
 <div class="space-y-2 mb-4">
     <p class="text-xl">您好，<?php echo isset($user->nickName)?$user->nickName:$user->userName ?></p>
-    <p>欢迎登陆<?php echo config('app.app_name'); ?><?php echo config('app.app_subtitle'); ?></p>
+    <p>欢迎登陆{:siteConfigText('app_name')}{:siteConfigText('app_subtitle')}</p>
 </div>
 
 <!-- 浏览器信息 -->
@@ -79,7 +79,7 @@
 
 <!-- 账号信息 -->
 <div class="space-y-4 mb-4">
-    <h2 class="text-xl font-semibold">您的<?php echo config('app.app_name'); ?>账号</h2>
+    <h2 class="text-xl font-semibold">您的{:siteConfigText('app_name')}账号</h2>
     <form id="profileForm" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -288,8 +288,13 @@
             if(res.code == 200){
                 $('#get-bind-code').text('重新获取绑定码');
                 rStatusMessage.success('获取绑定码成功，请根据操作进行绑定');
-                var element = '<p>请使用链接<a href="https://t.me/<?php echo config('telegram.botConfig.bots.randallanjie_bot.username'); ?>?start=' + res.data + '" target="_blank">https://t.me/<?php echo config('telegram.botConfig.bots.randallanjie_bot.username'); ?>?start=' + res.data + '</a>绑定Telegram账号</p><p>如果你已经与机器人对话过，你也可以使用命令 /bind ' + res.data + ' 绑定Telegram账号</p>';
-                $('#bind-link-here').html(element);
+                var botUsername = <?php echo json_encode((string) config('telegram.botConfig.bots.randallanjie_bot.username'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                var bindUrl = 'https://t.me/' + encodeURIComponent(botUsername) + '?start=' + encodeURIComponent(res.data);
+                var link = $('<a>', {href: bindUrl, target: '_blank', rel: 'noopener'}).text(bindUrl);
+                $('#bind-link-here').empty().append(
+                    $('<p>').text('请使用链接').append(link).append(document.createTextNode('绑定Telegram账号')),
+                    $('<p>').text('如果你已经与机器人对话过，你也可以使用命令 /bind ' + res.data + ' 绑定Telegram账号')
+                );
             }else{
                 rStatusMessage.error(res.message);
             }

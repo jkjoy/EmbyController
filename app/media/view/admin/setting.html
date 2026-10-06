@@ -102,6 +102,65 @@
         </div>
     </div>
 
+    <!-- 后台管理的服务连接和个性化配置 -->
+    {foreach $settingSections as $sectionLabel => $fields}
+    <details class="border-t border-white/10 pt-5">
+        <summary class="cursor-pointer text-xl font-semibold">{$sectionLabel|htmlentities}</summary>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+            {foreach $fields as $field}
+            <div class="space-y-2 {if $field['type'] == 'json' || $field['type'] == 'textarea'}md:col-span-2{/if}">
+                <label for="system-setting-{$field.key}" class="block text-white-400">{$field.label|htmlentities}</label>
+                {if $field['secret']}
+                    {if $field['type'] == 'json'}
+                    <textarea id="system-setting-{$field.key}" name="{$field.key}" rows="6"
+                              data-system-setting data-setting-type="json" data-setting-secret="1" data-setting-label="{$field.label|htmlentities}"
+                              placeholder="填写完整 JSON 以更新，留空保留现有内容"
+                              autocomplete="off" class="w-full bg-white/10 rounded-lg px-4 py-2 font-mono text-sm"></textarea>
+                    {else/}
+                    <input id="system-setting-{$field.key}" type="password" name="{$field.key}" value=""
+                           data-system-setting data-setting-type="secret" data-setting-secret="1" data-setting-label="{$field.label|htmlentities}"
+                           placeholder="填写新密钥以更新，留空保留现有内容"
+                           autocomplete="new-password" class="w-full bg-white/10 rounded-lg px-4 py-2">
+                    {/if}
+                    <div class="flex flex-wrap items-center gap-4 text-sm">
+                        <span class="text-gray-400" data-secret-status="{$field.key}">{if !empty($secretStates[$field['key']])}已配置{else/}未配置{/if}</span>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="clearSecrets[]" value="{$field.key}" class="rounded">
+                            <span>{if $field['key'] == 'crontabKey'}重置为随机密钥{else/}清除已保存内容{/if}</span>
+                        </label>
+                    </div>
+                {elseif $field['type'] == 'bool'/}
+                    <select id="system-setting-{$field.key}" name="{$field.key}" data-system-setting
+                            {if !empty($field['disabled'])}disabled{/if}
+                            class="w-full bg-white/10 rounded-lg px-4 py-2">
+                        <option value="0" {if empty($settings[$field['key']])}selected{/if}>关闭</option>
+                        <option value="1" {if !empty($settings[$field['key']])}selected{/if}>开启</option>
+                    </select>
+                {elseif $field['type'] == 'select'/}
+                    <select id="system-setting-{$field.key}" name="{$field.key}" data-system-setting
+                            {if !empty($field['disabled'])}disabled{/if}
+                            class="w-full bg-white/10 rounded-lg px-4 py-2">
+                        {foreach $field['options'] as $optionValue => $optionLabel}
+                        <option value="{$optionValue|htmlentities}" {if (string)($settings[$field['key']] ?? '') === (string)$optionValue}selected{/if}>{$optionLabel|htmlentities}</option>
+                        {/foreach}
+                    </select>
+                {elseif $field['type'] == 'json' || $field['type'] == 'textarea'/}
+                    <textarea id="system-setting-{$field.key}" name="{$field.key}" rows="6"
+                              data-system-setting data-setting-type="{$field.type}" data-setting-label="{$field.label|htmlentities}"
+                              class="w-full bg-white/10 rounded-lg px-4 py-2 {if $field['type'] == 'json'}font-mono text-sm{/if}">{$settings[$field['key']] ?? ''}</textarea>
+                {else/}
+                    <input id="system-setting-{$field.key}" name="{$field.key}"
+                           type="{if $field['type'] == 'int'}number{else/}{$field.type}{/if}"
+                           value="{$settings[$field['key']] ?? ''}" data-system-setting
+                           class="w-full bg-white/10 rounded-lg px-4 py-2">
+                {/if}
+                {if !empty($field['help'])}<p class="text-sm text-gray-400">{$field.help|htmlentities}</p>{/if}
+            </div>
+            {/foreach}
+        </div>
+    </details>
+    {/foreach}
+
     <!-- 客户端设置 -->
     <div class="space-y-4 mb-4">
         <h2 class="text-xl font-semibold">客户端设置</h2>
@@ -253,7 +312,7 @@
 
     <!-- 保存按钮 -->
     <div class="flex justify-end">
-        <button type="button"
+        <button type="button" id="save-settings-button"
                 onclick="saveSettings()"
                 class="px-6 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30">
             保存更改
@@ -347,12 +406,44 @@ function saveSettings() {
         userAgreement: $('textarea[name="userAgreement"]').val()
     };
 
+    for (const control of document.querySelectorAll('[data-system-setting]')) {
+        const value = control.value;
+        if (control.dataset.settingType === 'json' && !(control.dataset.settingSecret === '1' && value.trim() === '')) {
+            try {
+                JSON.parse(value);
+            } catch (error) {
+                rStatusMessage.error(control.dataset.settingLabel + ' 的 JSON 格式错误');
+                control.closest('details').open = true;
+                control.focus();
+                return;
+            }
+        }
+        formData[control.name] = value;
+    }
+    formData.clearSecrets = $('input[name="clearSecrets[]"]:checked').map(function() {
+        return this.value;
+    }).get();
+
+    $('#save-settings-button').prop('disabled', true).text('保存中...');
     $.post("{:url('admin/setting', [])}", formData, function(res) {
         if(res.code == 200) {
             rStatusMessage.success(res.message);
+            $('[data-setting-secret="1"]').each(function() {
+                if (formData.clearSecrets.includes(this.name)) {
+                    $('[data-secret-status="' + this.name + '"]').text(this.name === 'crontabKey' ? '已配置' : '未配置');
+                } else if (this.value.trim() !== '') {
+                    $('[data-secret-status="' + this.name + '"]').text('已配置');
+                }
+                this.value = '';
+            });
+            $('input[name="clearSecrets[]"]').prop('checked', false);
         } else {
             rStatusMessage.error(res.message);
         }
+    }).fail(function() {
+        rStatusMessage.error('保存失败，请检查网络后重试');
+    }).always(function() {
+        $('#save-settings-button').prop('disabled', false).text('保存更改');
     });
 }
 

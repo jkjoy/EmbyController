@@ -76,4 +76,4 @@ while true; do
   fi
 done
 
-echo "请修改.env中的数据库连接和APP_HOST后重启容器，并配置外部Nginx连接9000端口、代理2347端口的/ws。"
+echo "请先修改.env中的数据库连接后重启容器，配置外部Nginx连接9000端口、代理2347端口的/ws，再登录管理后台填写网站地址、Emby及其它服务设置。"

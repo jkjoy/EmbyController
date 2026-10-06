@@ -1,36 +1,16 @@
 <?php
 
-$lineList = [];
-$prefix = 'EMBY_LINE_LIST_';
-
-$envVars = !empty($_ENV) ? $_ENV : getenv();
-
-foreach ($envVars as $envVar => $value) {
-    if (strpos($envVar, $prefix) === 0) {
-        $parts = explode('_', substr($envVar, strlen($prefix)));
-        $index = $parts[0];
-        $subKey = strtolower($parts[1]);
-
-        if (!isset($lineList[$index])) {
-            $lineList[$index] = [];
-        }
-        $lineList[$index][$subKey] = $value;
-    }
-}
-ksort($lineList);
-$lineList = array_values($lineList);
-
 return [
     // 媒体服务器地址
-    'urlBase' => env('EMBY_URLBASE', 'http://127.0.0.1:8096/emby/'),
+    'urlBase' => '',
     // 媒体服务器api key
-    'apiKey' => env('EMBY_APIKEY', ''),
+    'apiKey' => '',
     // 模板用户id
-    'UserTemplateId' => env('EMBY_TEMPLATEUSERID', ''),
+    'UserTemplateId' => '',
     // crontab密码
-    'crontabKey' => env('CRONTAB_KEY', ''),
+    'crontabKey' => '',
     // 线路
-    'lineList' => $lineList,
+    'lineList' => [],
     // Emby中管理员用户id
-    'adminUserId' => env('EMBY_ADMINUSERID', ''),
+    'adminUserId' => '',
 ];

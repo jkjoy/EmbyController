@@ -1,34 +1,17 @@
 <?php
 
-$availablePayment = [];
-$prefix = 'AVAILABLE_PAYMENT_';
-
-$envVars = !empty($_ENV) ? $_ENV : getenv();
-
-foreach ($envVars as $envVar => $value) {
-    if (strpos($envVar, $prefix) === 0) {
-        $availablePayment[] = $value;
-    }
-}
-
-$enableEPay = true;
-
-if (env('PAY_URL', '') == '' || env('PAY_MCHID', '') == '' || env('PAY_KEY', '') == '' || count($availablePayment) == 0) {
-    $enableEPay = false;
-}
-
 return [
     // 易支付接口
     'epay' => [
         // 是否启用
-        'enable' => $enableEPay,
+        'enable' => false,
         // 接口地址
-        'urlBase' => env('PAY_URL', ''),
+        'urlBase' => '',
         // 商户id
-        'id' => env('PAY_MCHID', ''),
+        'id' => '',
         // 商户密钥
-        'key' => env('PAY_KEY', ''),
+        'key' => '',
         // 支持的支付方式
-        'availablePayment' => $availablePayment,
+        'availablePayment' => [],
     ],
 ];

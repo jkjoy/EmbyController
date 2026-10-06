@@ -7,8 +7,7 @@
     <title>{:siteTitle('注册')}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <meta name="description" content="专业的影视管理平台" />
-    <meta name="author" content="{:config('app.powered_by')}" />
+    {include file='public/_meta' /}
     <script src="/assets/index/js/jquery-3.7.1.min.js"></script>
     <script src="https://notification.randallanjie.com/r_notification.js"></script>
     {if condition="$sitekey && $sitekey != ''"}
@@ -54,8 +53,13 @@
     <div class="w-full max-w-md">
         <div class="glass-effect rounded-2xl p-6 md:p-8">
             <div class="text-center mb-8">
+                {if config('app.site_logo')}
+                <a href="/media" class="inline-flex mb-4" aria-label="{:siteConfigText('app_name')}">
+                    <img src="{:siteConfigText('site_logo')}" alt="{:siteConfigText('app_name')}" class="h-12 w-12 object-contain" />
+                </a>
+                {/if}
                 <h1 class="text-2xl md:text-3xl font-bold mb-2">创建账号</h1>
-                <p class="text-white/60">加入<?php echo config('app.app_name'); ?>，开启您的影视之旅</p>
+                <p class="text-white/60">加入{:siteConfigText('app_name')}，开启您的影视之旅</p>
             </div>
 
             <form class="space-y-6" id="registerForm" action="{:url('media/user/register')}" method="post">
@@ -279,5 +283,6 @@
         }
     });
 </script>
+{include file='public/_footer' /}
 </body>
 </html>

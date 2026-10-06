@@ -6,8 +6,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{:siteTitle()}</title>
-    <meta name="description" content="专业的影视管理平台" />
-    <meta name="author" content="{:config('app.powered_by')}" />
+    {include file='public/_meta' /}
     <script src="/assets/index/js/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
@@ -90,7 +89,12 @@
     <!-- 导航栏 -->
     <nav class="fixed top-0 z-50 w-full px-4 md:px-6 py-4">
         <div class="glass-effect rounded-full mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center justify-between">
-            <a href="/media" class="text-xl md:text-2xl font-bold">{:siteTitle()}</a>
+            <a href="/media" class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                {if config('app.site_logo')}
+                <img src="{:siteConfigText('site_logo')}" alt="{:siteConfigText('app_name')}" class="h-8 w-8 object-contain" />
+                {/if}
+                <span>{:siteTitle()}</span>
+            </a>
 
             <!-- 移动端菜单按钮 -->
             <button id="menuButton" class="md:hidden p-2 glass-effect rounded-full">
@@ -252,10 +256,10 @@
             <!-- 顶部标题区域 -->
             <div class="absolute top-0 left-0 right-0 z-10 pt-24 md:pt-32 px-4 md:px-6 text-center md:text-left md:ml-40 lg:ml-64">
             <span class="inline-block glass-effect px-3 py-1 rounded-full text-sm mb-4">
-              欢迎来到<?php echo config('app.app_name'); ?>
+              欢迎来到{:siteConfigText('app_name')}
             </span>
                 <h1 class="text-3xl md:text-5xl lg:text-6xl font-bold mb-4">
-                    专业的影视管理平台
+                    {:siteConfigText('app_subtitle') ?: '专业的影视管理平台'}
                 </h1>
             </div>
 
@@ -273,7 +277,7 @@
             <div class="relative h-full flex items-center px-4 md:px-6">
                 <div class="max-w-2xl mx-auto md:ml-40 lg:ml-64 animate-fade-in mt-64">
                     <p class="text-base md:text-lg text-white/80 mb-8">
-                        由<?php echo config('app.powered_by'); ?>提供技术支持，为您带来优质的影视及管理服务。多条线路保障，稳定可靠的观影体验。
+                        {if config('app.powered_by')}由{:siteConfigText('powered_by')}提供技术支持，{/if}为您带来优质的影视及管理服务。多条线路保障，稳定可靠的观影体验。
                     </p>
                     {if isset(session('r_user')->id)}
                     <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/media/user/index'">
@@ -388,9 +392,7 @@
             </div>
         </section>
 
-        <footer class="text-center py-4">
-            <p>&copy; <?php echo date("Y"); ?> Powered By Randallanjie.com</p>
-        </footer>
+        {include file='public/_footer' /}
     </main>
 </div>
 

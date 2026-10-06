@@ -1,6 +1,6 @@
-<footer class="text-center py-4">
+<footer style="text-align: center; padding: 1rem; color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">
     <p class="text-sm text-white/60">&copy; {:date('Y')} {:siteConfigText('app_name')}{if config('app.powered_by')} · Powered By {:siteConfigText('powered_by')}{/if}</p>
     {if config('app.site_footer')}
-    <p class="mt-2 text-sm text-white/60 whitespace-pre-line">{:siteConfigText('site_footer')}</p>
+    <p style="margin-top: 0.5rem; white-space: pre-line;">{:siteConfigText('site_footer')}</p>
     {/if}
 </footer>

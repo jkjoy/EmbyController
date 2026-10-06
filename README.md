@@ -21,9 +21,9 @@
 
 ### Docker 与外部 Nginx
 
-应用镜像运行 PHP-FPM、队列、WebSocket 和日志维护，不包含 Nginx 或 Redis 服务。Compose 中不再启动 Redis；默认 `CACHE_TYPE=file`，如需外部 Redis，填写容器可访问的 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASS`。镜像保留用于连接外部 Redis 的 PHP 客户端扩展。
+应用镜像运行 PHP-FPM、队列、WebSocket 和日志维护，不包含 Nginx 或 Redis 服务。Compose 中不再启动 Redis；默认使用文件缓存，如需外部 Redis，在管理后台填写容器可访问的连接地址、端口、密码和数据库编号。镜像保留用于连接外部 Redis 的 PHP 客户端扩展。
 
-PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。先设置 `.env` 中的数据库连接和 `APP_HOST`（完整的外部站点地址，如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
+PHP-FPM 和 WebSocket 分别通过宿主机的 `127.0.0.1:9000`、`127.0.0.1:2347` 提供服务。9000 是 FastCGI 端口，网站 HTTP 端口由宿主机 Nginx 提供。`.env` 只填写数据库连接，配置外部 Nginx 后，登录后台“系统设置”填写完整的网站地址（如 `https://emby.example.com`），后台定时任务也通过该地址调用网站。
 
 启动应用后，将镜像中的静态文件导出到宿主机；以下示例在原 Compose 部署目录执行，文件名按实际部署替换：
 
@@ -38,6 +38,24 @@ sudo docker cp "$(docker compose -f docker-compose.yml ps -q emby-controller):/a
 将 [docker/nginx.conf](docker/nginx.conf) 作为宿主机 Nginx 站点配置，按需修改域名、监听端口、TLS 和 `root` 目录，再执行 `nginx -t` 并重载。示例监听 8018，通过 FastCGI 将 PHP 请求交给容器，并将同域 `/ws` 转发至 2347；`SCRIPT_FILENAME` 必须保留容器内的 `/app/public` 路径。Nginx 的访问日志和错误日志由宿主机管理。
 
 如果 Nginx 位于另一台机器或独立容器，请通过可达的地址或私有 Docker 网络连接应用的 9000、2347 端口，并调整代理地址。外部 Redis 的 `127.0.0.1` 指向应用容器自身，应填写实际可达的服务器地址。
+
+### 后台配置与旧环境变量迁移
+
+环境变量只保留 `DB_DRIVER`、`DB_TYPE`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS`、`DB_PORT`、`DB_CHARSET`、`DB_PREFIX`。网站标题、副标题、描述、关键词、Logo、图标、页脚，以及网站地址、Emby、线路、Telegram、邮件、支付、缓存、代理和 AI 等配置统一在后台“系统设置”填写，保存到现有数据库配置表（默认 `rc_config`）。
+
+首次部署先运行数据库迁移，使用初始管理员 `admin/A123456` 登录并修改密码，再在后台填写网站地址、Emby 连接及所需服务。未填写的可选服务保持关闭。定时任务密钥会自动初始化为随机值；密钥和密码在后台只显示是否已配置，留空保存会保留已有值，需要删除时勾选“清除已保存内容”。定时任务密钥的对应选项为“重置为随机密钥”，重置后仍保持已配置，原有 Webhook 调用方需更新密钥。
+
+升级旧部署时，保留原 `.env`，先确保数据库可用。应用首次初始化会从旧环境变量导入数据库中尚未配置的项目，不覆盖已有后台设置；也可在项目目录手动执行一次：
+
+```sh
+php think settings:import-env
+```
+
+Docker 部署可执行 `docker compose -f docker-compose.yml exec emby-controller php think settings:import-env`，文件名按实际部署替换。确认后台配置完整后，备份旧 `.env`，再删除其中的非数据库配置。导入后的服务配置以数据库为准，修改旧环境变量不再覆盖后台设置。
+
+后台保存后，新请求立即使用最新配置，Workerman 会在约 5 秒内同步。缓存或队列连接切换的生效方式见后台对应设置说明。
+
+邮件目前仅支持直接连接 SMTP；历史“邮件使用 SOCKS5”选项暂不支持，在后台保持关闭。
 
 ### 日志容量限制
 
@@ -153,17 +171,20 @@ docker run -d -p 127.0.0.1:9000:9000 -p 127.0.0.1:2347:2347 --name emby-controll
 
 3. **配置环境**：
    - 将 `example.env` 复制成 `.env` 。
-   - 根据需要更新`.env`环境变量。
-   - 设置数据库并更新`config`目录中的各项配置。
+   - 只更新 `.env` 中的数据库连接信息。
 
-4. **导入数据库**：
-   - 导入[数据库](demomedia_2025-02-14.sql)。
-   - 默认用户名/密码：admin/A123456
+4. **初始化数据库**：
+   - 执行 `php think migrate:run` 建表并初始化管理员。
+   - 初始用户名/密码：admin/A123456，首次登录后修改密码。
 
 5. **启动开发服务器**：
     ```sh
     php think run
     ```
+
+6. **配置网站和服务**：
+   - 登录后台“系统设置”，填写网站地址、个性化信息、Emby 和其它服务连接。
+   - 升级旧部署时按上文导入旧环境变量配置。
 
 ## 贡献
 

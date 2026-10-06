@@ -48,12 +48,12 @@ class Media extends BaseController
             $data = Request::get();
 
             $logFile = __DIR__ . '/../../../runtime/log/media_webhook.log';
-            if (env('APP_DEBUG', true)) {
+            if (app()->isDebug()) {
                 file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Webhook收到新消息: Get参数: " . json_encode($data) . "Post参数: " . json_encode(Request::post()) . "\n", FILE_APPEND);
 
             }
 
-            if (isset($data['key']) && $data['key'] == Config::get('media.crontabKey')) {
+            if (verifyCrontabKey($data['key'] ?? null)) {
                 $data = Request::param();
                 if (isset($data['Event']) && $data['Event'] != '' && isset($data['User']) && $data['User'] != '') {
                     $userModel = new UserModel();
@@ -379,7 +379,7 @@ class Media extends BaseController
                                         if ($msg != '') {
                                             sendStationMessage($user['id'], $msg);
                                             $telegramToken = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
-                                            if ($telegramToken != 'notgbot') {
+                                            if ($telegramToken && $telegramToken != 'notgbot') {
                                                 $telegramModel = new TelegramModel();
                                                 $telegramUser = $telegramModel->where('userId', $user['id'])->find();
                                                 if ($telegramUser) {
@@ -405,19 +405,23 @@ class Media extends BaseController
 
                 }
             } else {
-                if (env('APP_DEBUG', true)) {
+                if (app()->isDebug()) {
                     file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Key错误\n", FILE_APPEND);
                 }
             }
         } catch (\Exception $exception) {
             $message = '第' . $exception->getLine() . '行发生错误：' . $exception->getMessage();
             // 错误内容
-            $telegram = new Api(Config::get('telegram.botConfig.bots.randallanjie_bot.token'));
-            $telegram->sendMessage([
-                'chat_id' => Config::get('telegram.adminId'),
-                'text' => $message . PHP_EOL . 'get: ' . json_encode(Request::get()) . PHP_EOL . 'post: ' . json_encode(Request::post()),
-                'parse_mode' => 'HTML',
-            ]);
+            trace($message, 'error');
+            $telegramToken = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
+            if ($telegramToken && $telegramToken != 'notgbot') {
+                $telegram = new Api($telegramToken);
+                $telegram->sendMessage([
+                    'chat_id' => Config::get('telegram.adminId'),
+                    'text' => $message . PHP_EOL . 'get: ' . json_encode(Request::get()) . PHP_EOL . 'post: ' . json_encode(Request::post()),
+                    'parse_mode' => 'HTML',
+                ]);
+            }
             return false;
         }
     }

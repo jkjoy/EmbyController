@@ -6,114 +6,141 @@ use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use Workerman\Timer;
 use think\facade\Db;
-use think\facade\Cache;
 use Channel\Server as ChannelServer;
 use think\facade\Config;
-use mailer\Mailer;
+use app\service\SystemSettings;
 use app\api\model\LotteryModel;
 use app\api\model\LotteryParticipantModel;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// 加载 .env 配置
-function loadEnv() {
-    $envFile = __DIR__ . '/.env';
-    if (!file_exists($envFile)) {
-        die("未找到 .env 文件\n");
-    }
-
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    $config = [];
-
-    foreach ($lines as $line) {
-        // 跳过注释
-        if (strpos(trim($line), '#') === 0) {
-            continue;
-        }
-
-        // 解析配置项
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = array_map('trim', explode('=', $line, 2));
-            // 移除引号
-            $value = trim($value, '"\'');
-            $config[$key] = $value;
-        }
-    }
-
-    return $config;
-}
-
-try {
-    $dotenv = loadEnv();
-
-    // 输出调试信息
-    echo "数据库信息：\n";
-    echo "DB_HOST: " . ($dotenv['DB_HOST'] ?? 'not set') . "\n";
-    echo "DB_NAME: " . ($dotenv['DB_NAME'] ?? 'not set') . "\n";
-    echo "DB_USER: " . ($dotenv['DB_USER'] ?? 'not set') . "\n";
-
-    $runInDocker = false;
-    if (isset($dotenv['IS_DOCKER'])) {
-        $runInDocker = $dotenv['IS_DOCKER'] === 'true';
-    } else if (file_exists('/.dockerenv')) {
-        $runInDocker = true;
-    } else if (getenv('container') === 'docker') {
-        $runInDocker = true;
-    } else if (file_exists('/proc/1/cgroup')) {
-        $cgroup = file_get_contents('/proc/1/cgroup');
-        if (strpos($cgroup, 'docker') !== false || strpos($cgroup, 'containerd') !== false) {
-            $runInDocker = true;
-        }
-    } else {
-        $runInDocker = false;
-    }
-
-    // 定义是否在 Docker 中运行
-    define('RUN_IN_DOCKER', $runInDocker);
-
-    define('APP_HOST', $dotenv['APP_HOST'] ?? 'http://127.0.0.1');
-    define('CRONTAB_KEY', $dotenv['CRONTAB_KEY'] ?? '');
-
-    // 定义数据库配置
-    define('DB_CONFIG', [
-        'type'          => $dotenv['DB_TYPE'] ?? 'mysql',
-        'hostname'      => $dotenv['DB_HOST'] ?? '127.0.0.1',
-        'database'      => $dotenv['DB_NAME'] ?? '',
-        'username'      => $dotenv['DB_USER'] ?? '',
-        'password'      => $dotenv['DB_PASS'] ?? '',
-        'hostport'      => $dotenv['DB_PORT'] ?? '3306',
-        'charset'       => $dotenv['DB_CHARSET'] ?? 'utf8',
-        'prefix'        => 'rc_',
-    ]);
-
-    // 定义 media 配置
-    define('MEDIA_CONFIG', [
-        'apiKey'    => $dotenv['EMBY_APIKEY'] ?? '',
-        'urlBase'   => $dotenv['EMBY_URLBASE'] ?? '',
-    ]);
-
-    if ($dotenv['TG_BOT_TOKEN'] == 'notgbot') {
-        // 未配置 Telegram 机器人
-        define('TG_CONFIG', [
-            'tgBotToken'    => '',
-            'tgBotAdminId'      => '',
-            'tgBotGroupId'      => '',
-        ]);
-    } else {
-        // 定义 TG 配置
-        define('TG_CONFIG', [
-            'tgBotToken'    => $dotenv['TG_BOT_TOKEN'] ?? '',
-            'tgBotAdminId'      => $dotenv['TG_BOT_ADMIN_ID'] ?? '',
-            'tgBotGroupId'      => $dotenv['TG_BOT_GROUP_ID'] ?? '',
-        ]);
-    }
-
-} catch (\Exception $e) {
-    die("加载配置错误: " . $e->getMessage() . "\n");
-}
+// .env 仅用于数据库连接；业务设置在各 worker 启动后从数据库读取。
+\Dotenv\Dotenv::createImmutable(__DIR__)->safeLoad();
 
 // 设置为东八区
 date_default_timezone_set('Asia/Shanghai');
+
+
+// 每个子进程独立初始化框架和数据库，避免继承主进程的连接。
+function initializeSettingsWorker(bool $primary = false): \think\App {
+    $app = new \think\App(__DIR__);
+    $app->initialize();
+    SystemSettings::apply($app, true);
+    if ($primary) {
+        synchronizeTelegramCommands();
+    }
+    Timer::add(5, function() use ($app, $primary) {
+        try {
+            SystemSettings::apply($app, true);
+            if ($primary) {
+                synchronizeTelegramCommands();
+            }
+        } catch (\Throwable $e) {
+            // 配置刷新失败不停止现有业务，也不每五秒重复打印同一错误。
+            static $lastWarning = 0;
+            if (time() - $lastWarning >= 60) {
+                echo "后台设置暂时无法刷新，将继续重试\n";
+                $lastWarning = time();
+            }
+        }
+    });
+    return $app;
+}
+
+function telegramToken(): string {
+    $token = (string) Config::get('telegram.botConfig.bots.randallanjie_bot.token', '');
+    return $token === 'notgbot' ? '' : $token;
+}
+
+function mediaSettingsReady(): bool {
+    return Config::get('media.apiKey', '') !== '' && Config::get('media.urlBase', '') !== '';
+}
+
+// 菜单仅由 worker 0 在 token 发生变化时同步；Telegram 故障不影响数据库任务。
+function synchronizeTelegramCommands(): void {
+    static $previousToken = null;
+    $token = telegramToken();
+    if ($token === $previousToken) {
+        return;
+    }
+    $previousToken = $token;
+    if ($token === '') {
+        return;
+    }
+    try {
+        $telegram = new \Telegram\Bot\Api($token);
+        $commands = [
+            // 私聊命令
+            [
+                'command' => 'start',
+                'description' => '开始使用机器人 - 私聊使用'
+            ],
+            [
+                'command' => 'bind',
+                'description' => '绑定账号 - 私聊使用'
+            ],
+            [
+                'command' => 'unbind',
+                'description' => '解绑账号 - 私聊使用'
+            ],
+            [
+                'command' => 'sign',
+                'description' => '每日签到 - 私聊使用'
+            ],
+            [
+                'command' => 'notification',
+                'description' => '通知设置 - 私聊使用'
+            ],
+            [
+                'command' => 'push',
+                'description' => '转账 - 私聊/群组使用'
+            ],
+            [
+                'command' => 'coin',
+                'description' => '查询余额 - 私聊/群组使用'
+            ],
+            [
+                'command' => 'ping',
+                'description' => '测试机器人 - 群组使用'
+            ],
+            [
+                'command' => 'lottery',
+                'description' => '查看抽奖 - 群组使用'
+            ],
+            [
+                'command' => 'exitlottery',
+                'description' => '退出抽奖 - 群组使用'
+            ],
+            [
+                'command' => 'bet',
+                'description' => '参与赌局 - 群组使用'
+            ],
+            [
+                'command' => 'watchhistory',
+                'description' => '查看24小时内服务器播放记录 - 群组使用'
+            ],
+            [
+                'command' => 'startlottery',
+                'description' => '开始抽奖 - 群组使用(管理员)'
+            ],
+            [
+                'command' => 'startbet',
+                'description' => '开始赌局 - 群组使用(管理员)'
+            ],
+            [
+                'command' => 'detail',
+                'description' => '查看用户详细信息 - 群组使用(管理员)'
+            ],
+        ];
+        $telegram->setMyCommands([
+            'commands' => $commands,
+            'scope' => ['type' => 'default'],
+        ]);
+        echo "成功初始化Telegram机器人命令菜单\n";
+    } catch (\Throwable $e) {
+        echo "Telegram 菜单同步失败，请检查后台机器人设置\n";
+    }
+}
 
 // 初始化 Channel 服务器（必须在最前面）
 $channel_server = new ChannelServer('127.0.0.1', 2206);
@@ -163,16 +190,8 @@ $ws->onWorkerStart = function($worker) {
     }
 
     try {
-        // 初始化数据库连接
-        $config = DB_CONFIG;
-        $dbConfig = [
-            'default' => 'mysql',
-            'connections' => [
-                'mysql' => $config
-            ]
-        ];
-
-        Db::setConfig($dbConfig);
+        // 初始化数据库连接及后台设置
+        initializeSettingsWorker($worker->id === 0);
 
         // 测试数据库连接
         Db::query("SELECT 1");
@@ -202,90 +221,6 @@ $ws->onWorkerStart = function($worker) {
                 $message = "[$time] 检查数据库系统配置错误: " . $e->getMessage() . "\n";
                 file_put_contents($logFile, $message, FILE_APPEND);
             }
-        }
-
-        // 检查是否启用了Telegram机器人
-        $token = TG_CONFIG['tgBotToken'];
-        if (!empty($token)) {
-            // 初始化机器人菜单
-            $telegram = new \Telegram\Bot\Api($token);
-
-            // 定义命令
-            $commands = [
-                // 私聊命令
-                [
-                    'command' => 'start',
-                    'description' => '开始使用机器人 - 私聊使用'
-                ],
-                [
-                    'command' => 'bind',
-                    'description' => '绑定账号 - 私聊使用'
-                ],
-                [
-                    'command' => 'unbind',
-                    'description' => '解绑账号 - 私聊使用'
-                ],
-                [
-                    'command' => 'sign',
-                    'description' => '每日签到 - 私聊使用'
-                ],
-                [
-                    'command' => 'notification',
-                    'description' => '通知设置 - 私聊使用'
-                ],
-                [
-                    'command' => 'push',
-                    'description' => '转账 - 私聊/群组使用'
-                ],
-                [
-                    'command' => 'coin',
-                    'description' => '查询余额 - 私聊/群组使用'
-                ],
-                [
-                    'command' => 'ping',
-                    'description' => '测试机器人 - 群组使用'
-                ],
-                [
-                    'command' => 'lottery',
-                    'description' => '查看抽奖 - 群组使用'
-                ],
-                [
-                    'command' => 'exitlottery',
-                    'description' => '退出抽奖 - 群组使用'
-                ],
-                [
-                    'command' => 'bet',
-                    'description' => '参与赌局 - 群组使用'
-                ],
-                [
-                    'command' => 'watchhistory',
-                    'description' => '查看24小时内服务器播放记录 - 群组使用'
-                ],
-                [
-                    'command' => 'startlottery',
-                    'description' => '开始抽奖 - 群组使用(管理员)'
-                ],
-                [
-                    'command' => 'startbet',
-                    'description' => '开始赌局 - 群组使用(管理员)'
-                ],
-                [
-                    'command' => 'detail',
-                    'description' => '查看用户详细信息 - 群组使用(管理员)'
-                ],
-            ];
-
-            // 设置命令
-            $telegram->setMyCommands([
-                'commands' => $commands,
-                'scope' => [
-                    'type' => 'default'
-                ]
-            ]);
-
-            echo "成功初始化Telegram机器人命令菜单\n";
-        } else {
-            echo "未配置Telegram机器人Token,跳过初始化\n";
         }
 
         // 添加定时任务
@@ -399,16 +334,8 @@ $wsProxy->onWorkerStart = function($worker) {
     }
 
     try {
-        // 初始化数据库连接
-        $config = DB_CONFIG;
-        $dbConfig = [
-            'default' => 'mysql',
-            'connections' => [
-                'mysql' => $config
-            ]
-        ];
-
-        Db::setConfig($dbConfig);
+        // 初始化数据库连接及后台设置
+        initializeSettingsWorker();
 
         // 测试数据库连接
         Db::query("SELECT 1");
@@ -520,6 +447,10 @@ $wsProxy->onError = function($connection, $code, $msg) {
 
 // 修改 checkExpiredUsers 函数
 function checkExpiredUsers() {
+    if (!mediaSettingsReady()) {
+        return;
+    }
+
     $now = time();
     $startTime = date('Y-m-d H:i:s', $now - 60);
     $endTime = date('Y-m-d H:i:s', $now + 86400);
@@ -617,6 +548,10 @@ function checkExpiredUsers() {
 
 // 修改 checkAllExpiredUsers 函数
 function checkAllExpiredUsers() {
+    if (!mediaSettingsReady()) {
+        return;
+    }
+
     $now = time();
     $time = date('Y-m-d\TH:i:s.v\Z', $now);
     $endTime = date('Y-m-d H:i:s', $now + 86400);
@@ -737,10 +672,10 @@ function processAutoRenewal($embyUser, $user) {
 
 // 禁用Emby账号
 function disableEmbyAccount($embyId) {
-    $apiKey = MEDIA_CONFIG['apiKey'];
-    $urlBase = MEDIA_CONFIG['urlBase'];
+    $apiKey = Config::get('media.apiKey', '');
+    $urlBase = rtrim((string) Config::get('media.urlBase', ''), '/') . '/';
 
-    $url = $urlBase . 'Users/' . $embyId . '/Policy?api_key=' . $apiKey;
+    $url = $urlBase . 'Users/' . $embyId . '/Policy?api_key=' . rawurlencode($apiKey);
     $data = ['IsDisabled' => true];
 
     $ch = curl_init($url);
@@ -763,10 +698,13 @@ function disableEmbyAccount($embyId) {
 
 // 发送通知
 function sendNotification($userId, $message) {
+    if (telegramToken() === '') {
+        return;
+    }
 
     // 检查用户是否有tgId
     $user = Db::name('telegram_user')->where('userId', $userId)->find();
-    if ($user && $user['telegramId'] && TG_CONFIG['tgBotToken']) {
+    if ($user && $user['telegramId'] && telegramToken()) {
         // 发送TG消息
         sendPrivateMessage($user['telegramId'], $message);
     }
@@ -774,6 +712,10 @@ function sendNotification($userId, $message) {
 
 // 检查抽奖开奖
 function checkLotteryDraw() {
+    if (telegramToken() === '') {
+        return;
+    }
+
     $lotteryModel = new \app\api\model\LotteryModel();
     $participantModel = new \app\api\model\LotteryParticipantModel();
 
@@ -938,9 +880,9 @@ function checkLotteryDraw() {
                             $privateMessage .= "奖品内容：" . ($prize['contents'][count($winnersList[$prize['name']])-1] ?? $prize['contents'][0]) . "\n\n";
                             $privateMessage .= "请注意查收您的奖品！";
 
-                            $token = TG_CONFIG['tgBotToken'];
+                            $token = telegramToken();
                             if (!$token) {
-                                throw new \Exception("Telegram bot token not found in environment variables");
+                                throw new \Exception("Telegram bot token is not configured");
                             }
 
                             $telegram = new \Telegram\Bot\Api($token);
@@ -996,9 +938,9 @@ function checkLotteryDraw() {
             try {
                 file_put_contents($logFile, "[$lotteryTime] 准备发送群组消息\n", FILE_APPEND);
                 // 发送群组消息
-                $token = TG_CONFIG['tgBotToken'];
+                $token = telegramToken();
                 if (!$token) {
-                    throw new \Exception("Telegram bot token not found in environment variables");
+                    throw new \Exception("Telegram bot token is not configured");
                 }
                 $telegram = new \Telegram\Bot\Api($token);
                 try {
@@ -1047,9 +989,9 @@ function checkLotteryDraw() {
 
 // 发送私信
 function sendPrivateMessage($userId, $message) {
-    $token = TG_CONFIG['tgBotToken'];
+    $token = telegramToken();
     if (!$token) {
-        throw new \Exception("Telegram bot token not found in environment variables");
+        return;
     }
     try {
         $telegram = new \Telegram\Bot\Api($token);
@@ -1071,9 +1013,9 @@ function sendPrivateMessage($userId, $message) {
 
 // 发送群组消息
 function sendGroupMessage($chatId, $message) {
-    $token = TG_CONFIG['tgBotToken'];
+    $token = telegramToken();
     if (!$token) {
-        throw new \Exception("Telegram bot token not found in environment variables");
+        return;
     }
     $telegram = new \Telegram\Bot\Api($token);
     $telegram->sendMessage([
@@ -1085,6 +1027,10 @@ function sendGroupMessage($chatId, $message) {
 
 // 修改 checkBetResult 函数
 function checkBetResult() {
+    if (telegramToken() === '') {
+        return;
+    }
+
     $betModel = new \app\api\model\BetModel();
     $bets = $betModel->where('status', 1)
         ->whereRaw('endTime <= ?', [date('Y-m-d H:i:s')])
@@ -1097,7 +1043,7 @@ function checkBetResult() {
             // 根据随机方式决定结果
             if ($bet['randomType'] == 'dice') {
                 // 使用TG骰子
-                $token = TG_CONFIG['tgBotToken'];
+                $token = telegramToken();
                 if (!$token) {
                     throw new \Exception("Telegram bot token not found");
                 }
@@ -1116,7 +1062,7 @@ function checkBetResult() {
                 $result = mt_rand(1, 6);
 
                 // 发送随机结果消息
-                $token = TG_CONFIG['tgBotToken'];
+                $token = telegramToken();
                 if ($token) {
                     $telegram = new \Telegram\Bot\Api($token);
                     $telegram->sendMessage([
@@ -1228,7 +1174,7 @@ function checkBetResult() {
                 $message .= "本局没有赢家\n";
             }
 
-            $token = TG_CONFIG['tgBotToken'];
+            $token = telegramToken();
             if ($token) {
                 $telegram = new \Telegram\Bot\Api($token);
                 $telegram->sendMessage([
@@ -1251,10 +1197,14 @@ function checkBetResult() {
 
 function runCrontab() {
     // HTTP 服务由外部 Nginx 提供，通过配置的站点地址执行定时任务。
-    $host = APP_HOST;
+    $host = (string) Config::get('app.app_host', '');
+    $key = (string) Config::get('media.crontabKey', '');
+    if ($host === '' || $key === '') {
+        return;
+    }
     // 去掉末尾的斜杠
     $host = rtrim($host, '/');
-    $url = $host . '/media/server/crontab?crontabkey=' . CRONTAB_KEY;
+    $url = $host . '/media/server/crontab?crontabkey=' . rawurlencode($key);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 60);
@@ -1320,43 +1270,7 @@ function cleanupLogFiles()
 
 function checkConfigDatabase()
 {
-    // 检查config表，查询全部数据
-    $config = Db::name('config')->select();
-    $data = [
-        'avableRegisterCount' => 0,
-        'chargeRate' => 1,
-        'sysnotificiations' => '您有一条新消息：{Message}',
-        'findPasswordTemplate' => '您的找回密码链接是：<a href="{Url}">{Url}</a>',
-        'verifyCodeTemplate' => '您的验证码是：{Code}',
-        'clientList' => '[]',
-        'clientBlackList' => '[]',
-        'maxActiveDeviceCount' => '0',
-        'signInMaxAmount' => '0',
-        'signInMinAmount' => '0',
-        'telegramRules' => '[]',
-        'privacyPolicy' => '',
-        'userAgreement' => '',
-    ];
-
-    foreach ($data as $key => $value) {
-        $found = false;
-        foreach ($config as $conf) {
-            if ($conf['key'] == $key) {
-                $found = true;
-                break;
-            }
-        }
-        if (!$found && !empty($key) && !empty($value)) {
-            // 插入
-            Db::name('config')->insert([
-                'key' => $key,
-                'value' => $value,
-                'appName' => 'media',
-                'type' => 1,
-                'status' => 1
-            ]);
-        }
-    }
+    SystemSettings::initialize();
 }
 
 // 启动所有服务器

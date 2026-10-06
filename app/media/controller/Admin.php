@@ -1055,62 +1055,32 @@ class Admin extends BaseController
             $data = input('post.');
 
             try {
-                $sysConfigModel = new SysConfigModel();
-                // 处理可能的 JSON 数据
-                if (isset($data['clientList'])) {
-                    $data['clientList'] = $data['clientList']; // 已经是 JSON 字符串了
+                $clearSecrets = $data['clearSecrets'] ?? [];
+                unset($data['clearSecrets']);
+                if (!is_array($clearSecrets)) {
+                    throw new \InvalidArgumentException('清除密钥参数格式错误');
                 }
-                if (isset($data['clientBlackList'])) {
-                    $data['clientBlackList'] = $data['clientBlackList']; // 已经是 JSON 字符串了
-                }
-
-                // 遍历提交的设置并更新
-                foreach ($data as $key => $value) {
-                    // 查找是否存在该配置
-                    $config = $sysConfigModel->where('key', $key)->find();
-
-                    if ($config) {
-                        // 更新已存在的配置
-                        $config->value = $value;
-                        $config->save();
-                    } else {
-                        // 添加新配置
-                        $sysConfigModel->save([
-                            'key' => $key,
-                            'value' => $value,
-                            'appName' => 'media',
-                            'type' => 1,
-                            'status' => 1
-                        ]);
-                    }
-                }
-
-                // 清除网站标题/副标题缓存，使后台修改立即生效（见 app\listener\InitSiteConfig）
-                \think\facade\Cache::delete('site_config');
+                \app\service\SystemSettings::save($data, $clearSecrets);
+                \app\service\SystemSettings::apply(app(), true);
 
                 return json(['code' => 200, 'message' => '设置已更新']);
-            } catch (\Exception $e) {
-                return json(['code' => 400, 'message' => '更新失败：' . $e->getMessage()]);
+            } catch (\InvalidArgumentException $e) {
+                return json(['code' => 400, 'message' => $e->getMessage()]);
+            } catch (\Throwable $e) {
+                return json(['code' => 400, 'message' => '设置保存失败，请检查数据库连接或稍后重试']);
             }
         } else if (request()->isGet()) {
-            // 获取所有系统设置
-            $sysConfigModel = new SysConfigModel();
-            $configs = $sysConfigModel->select();
-
-            // 将配置转换为关联数组
-            $settings = [];
-            foreach ($configs as $config) {
-                $settings[$config['key']] = $config['value'];
+            // 表单数据只包含可回显设置及密钥的配置状态。
+            foreach (\app\service\SystemSettings::formData() as $name => $value) {
+                View::assign($name, $value);
             }
-
-            View::assign('settings', $settings);
             return view('admin/setting');
         }
     }
 
     private function disableEmbyAccount($embyId) {
-        $apiKey = MEDIA_CONFIG['apiKey'];
-        $urlBase = MEDIA_CONFIG['urlBase'];
+        $apiKey = Config::get('media.apiKey');
+        $urlBase = Config::get('media.urlBase');
 
         $url = $urlBase . 'Users/' . $embyId . '/Policy?api_key=' . $apiKey;
         $data = ['IsDisabled' => true];

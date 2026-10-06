@@ -10,13 +10,7 @@ mkdir -p /app/runtime/log/
 # 更改除 /app/.env 外的文件权限（批量 chown，避免每个文件 fork 一次进程拖慢启动）
 find /app -path /app/.env -prune -o -print0 | xargs -0 chown www-data:www-data
 
-# 读取 .env 文件并导出环境变量
-if [ -f /app/.env ]; then
-    echo "Loading environment variables from .env file..."
-    export $(grep -v '^#' /app/.env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*$' | xargs)
-else
-    echo ".env file not found, skipping environment variable loading"
-fi
+# PHP 框架读取数据库 .env；旧业务配置由 settings:import-env 专门解析。
 
 chmod -R 755 /app/runtime
 
@@ -34,13 +28,31 @@ else
     echo "No migrations found, skipping migration step"
 fi
 
+# 导入旧环境设置并初始化数据库中的后台设置；不会覆盖已保存的值。
+php /app/think settings:import-env
+
 # 启动PHP-FPM
 echo "Starting PHP-FPM..."
 php-fpm -D
 
 # 判断条件并启动队列
 echo "Starting Queue in background..."
-    php /app/think queue:work --queue main --tries 3 --sleep 5 &
+(
+    queue_pid=
+    trap 'if [ -n "$queue_pid" ]; then kill "$queue_pid" 2>/dev/null || true; wait "$queue_pid" || true; fi; exit 0' TERM INT
+    while :; do
+        php /app/think settings:queue-worker --queue main --tries 3 --sleep 5 &
+        queue_pid=$!
+        if wait "$queue_pid"; then
+            queue_status=0
+        else
+            queue_status=$?
+        fi
+        queue_pid=
+        echo "Queue worker exited (code $queue_status), restarting in 5 seconds..."
+        sleep 5
+    done
+) &
 
 # 启动GatewayWorker
 echo "Starting GatewayWorker..."

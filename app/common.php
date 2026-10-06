@@ -540,12 +540,28 @@ function getReplyFromAI($type, $inComeMessage)
  * 拼接网站标题（网站名称与副标题均可在后台「系统设置」中配置，见 app\listener\InitSiteConfig）。
  * 格式：[页面名 - ]副标题-网站名称；副标题为空时省略副标题与连接符。
  * @param string $page 可选页面名（如"登录"、"注册"）
- * @return string
+ * @return string HTML 安全的网站标题（用于模板输出）
  */
 function siteTitle($page = '')
 {
     $name     = config('app.app_name');
     $subtitle = config('app.app_subtitle');
     $base     = ($subtitle !== '' && $subtitle !== null) ? ($subtitle . '-' . $name) : $name;
-    return $page !== '' ? ($page . ' - ' . $base) : $base;
+    return htmlspecialchars((string) ($page !== '' ? ($page . ' - ' . $base) : $base), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+/**
+ * 以纯文本输出后台保存的网站配置，适用于 HTML 文本和属性。
+ * Think 模板的 {:函数()} 不会自动转义，因此统一在此处理。
+ */
+function siteConfigText($key, $default = '')
+{
+    return htmlspecialchars((string) config('app.' . $key, $default), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+/** 配置尚未就绪或传入非字符串时，拒绝 Webhook / 定时任务请求。 */
+function verifyCrontabKey($key): bool
+{
+    $secret = Config::get('media.crontabKey', '');
+    return is_string($secret) && $secret !== '' && is_string($key) && hash_equals($secret, $key);
 }

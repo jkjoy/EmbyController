@@ -5,6 +5,8 @@ use app\media\model\UserModel;
 use GatewayWorker\Lib\Gateway;
 use app\media\model\NotificationModel;
 use think\facade\Db;
+use app\service\SystemSettings;
+use Workerman\Timer;
 
 class Events
 {
@@ -13,17 +15,18 @@ class Events
         echo "Events Worker Started\n";
         // 初始化数据库连接
         try {
-            $config = DB_CONFIG;
-            
-            // 设置数据库连接
-            $dbConfig = [
-                'default' => 'mysql',
-                'connections' => [
-                    'mysql' => $config
-                ]
-            ];
-            Db::setConfig($dbConfig);
+            $app = new \think\App(dirname(__DIR__, 2));
+            $app->initialize();
+            SystemSettings::apply($app, true);
             Db::connect();
+
+            Timer::add(5, function() use ($app) {
+                try {
+                    SystemSettings::apply($app, true);
+                } catch (\Throwable $e) {
+                    // 保留现有连接，等待下一轮配置刷新。
+                }
+            });
             
             echo "Database connected successfully\n";
         } catch (\Exception $e) {
@@ -97,4 +100,4 @@ class Events
             echo "Error sending unread count: " . $e->getMessage() . "\n";
         }
     }
-} 
+}

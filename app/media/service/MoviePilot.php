@@ -11,6 +11,7 @@ class MoviePilot
     protected $client;
     protected $config;
     protected $token;
+    protected $tokenCacheKey;
     protected $cryptKey;
     
     public function __construct()
@@ -22,7 +23,7 @@ class MoviePilot
             throw new Exception('MoviePilot未启用');
         }
 
-        $baseUrl = env('MOVIEPILOT_URL', $this->config['url']);
+        $baseUrl = Config::get('media.moviepilot.url', '');
         
         // 确保URL末尾没有斜杠
         $baseUrl = rtrim($baseUrl, '/');
@@ -41,8 +42,13 @@ class MoviePilot
         ]);
         
         trace("MoviePilot base URL: " . $baseUrl, 'info');
-        $this->token = Cache::get('moviepilot_token');
-        $this->cryptKey = env('CRONTAB_KEY', '');
+        $this->tokenCacheKey = 'moviepilot_token_' . hash('sha256', serialize([
+            $baseUrl,
+            $this->config['username'],
+            $this->config['password'],
+        ]));
+        $this->token = Cache::get($this->tokenCacheKey);
+        $this->cryptKey = Config::get('media.crontabKey', '');
         
         if (!$this->token) {
             $this->login();
@@ -62,7 +68,7 @@ class MoviePilot
             $result = json_decode($response->getBody(), true);
             if (isset($result['access_token'])) {
                 $this->token = $result['token_type'] . ' ' . $result['access_token'];
-                Cache::set('moviepilot_token', $this->token, 3600); // 1小时过期
+                Cache::set($this->tokenCacheKey, $this->token, 3600); // 1小时过期
                 return true;
             }
         } catch (Exception $e) {
@@ -546,4 +552,4 @@ class MoviePilot
             ];
         }
     }
-} 
+}

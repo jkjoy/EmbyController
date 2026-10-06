@@ -88,10 +88,10 @@ class Telegram extends BaseController
     {
         $token = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
         $weburl = Config::get('app.app_host');
-        if ($token == 'notgbot') {
+        if (!$token || $token == 'notgbot') {
             return '请先配置Telegram机器人';
         } else if ($weburl == '') {
-            return '请先配置APP_HOST';
+            return '请先在后台系统设置中配置网站地址';
         } else {
             $telegram = new Api($token);
             $telegram->removeWebhook();
@@ -108,7 +108,7 @@ class Telegram extends BaseController
     public function listenWebHook()
     {
         $token = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
-        if ($token == 'notgbot') {
+        if (!$token || $token == 'notgbot') {
             return '请先配置Telegram机器人';
         }
         // 校验请求来源：Telegram 在每次回调请求头回传 setWebhook 时设置的 secret_token，比对失败则丢弃，防止伪造 update 冒充任意用户执行资金命令
@@ -945,6 +945,11 @@ class Telegram extends BaseController
      */
     private function addMessageToDeleteQueue($chatId, $messageId, $minutes)
     {
+        // 同步队列不支持延迟，直接入队会立即删除刚发出的消息。
+        if (Config::get('queue.default', 'sync') !== 'redis') {
+            return;
+        }
+
         $data = [
             'chat_id' => $chatId,
             'message_id' => $messageId
@@ -1076,6 +1081,10 @@ class Telegram extends BaseController
 
     private function getSign($id)
     {
+        $siteHost = rtrim((string) Config::get('app.app_host', ''), '/');
+        if ($siteHost === '') {
+            return '请先在后台系统设置中配置网站地址';
+        }
         $telegramModel = new TelegramModel();
         $telegramId = $id;
         $tgUser = $telegramModel->where('telegramId', $telegramId)->find();
@@ -1107,7 +1116,8 @@ class Telegram extends BaseController
                     $signKey = substr(md5(time()), 8, 8);
                     Cache::set('get_sign_' . $signKey, $randStr, 300);
                     Cache::set('post_signkey_' . $randStr, $user['id'], 300);
-                    return '请点击链接签到：<a href="https://randallanjie.com/index/account/sign?signkey=' . $signKey . '">点击签到</a>';
+                    $signUrl = $siteHost . '/index/account/sign?signkey=' . rawurlencode($signKey);
+                    return '请点击链接签到：<a href="' . htmlspecialchars($signUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">点击签到</a>';
                 } else {
                     return '您今天已签到～';
                 }
@@ -1123,7 +1133,7 @@ class Telegram extends BaseController
         $data = Request::get();
         $token = Config::get('telegram.botConfig.bots.randallanjie_bot.token');
         // 判断是否有参数
-        if (isset($data['key']) && isset($data['message']) && $data['key'] == Config::get('media.crontabKey') && $token != 'notgbot') {
+        if (verifyCrontabKey($data['key'] ?? null) && isset($data['message']) && $token && $token != 'notgbot') {
             $groupSetting = Config::get('telegram.groupSetting');
             if (isset($groupSetting['allow_notify']) && $groupSetting['allow_notify']) {
                 $telegram = new Api($token);
