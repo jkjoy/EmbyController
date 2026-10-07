@@ -97,6 +97,8 @@ docker compose -f docker-compose.yml logs --tail=100 emby-controller
 
 网站需要部署在域名根路径，不要添加 `/emby/` 等路径前缀。默认 8018 提供 HTTP；需要 HTTPS 时按下方可选反代步骤配置。
 
+旧 `/media`、`/media/...` 和 `index.php` 形式的旧入口会自动跳转到对应根路径；旧会话保存的登录、注册返回地址也会转换，保留页面查询参数。更新后无需清除浏览器 Cookie。
+
 #### 2. 自定义端口与验证
 
 需要使用宿主机 8090 端口时，只修改 Compose 应用服务的端口映射，容器端口仍为 8018：

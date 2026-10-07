@@ -105,7 +105,7 @@ class User extends BaseController
     {
         // 已登录自动跳转
         if (Session::has('r_user')) {
-            return redirect((string) url('/user/index'));
+            return redirect($this->loginReturnTarget());
         }
         // 初始返回参数
         $results = '';
@@ -152,12 +152,7 @@ class User extends BaseController
                         $userModel->updateUserInfo($user->id, $userJson);
 
                         // 跳转到之前访问的页面或默认页面
-                        $jumpUrl = Session::get('jump_url');
-                        if (empty($jumpUrl)) {
-                            $jumpUrl = (string)url('/user/index');
-                        } else {
-                            Session::delete('jump_url');
-                        }
+                        $jumpUrl = $this->loginReturnTarget();
 
                         if (isset($data['remember']) && ($data['remember'] == 'on'  || $data['remember'] == 'true' || $data['remember'] == '1')) {
                             // 保存登录状态
@@ -190,7 +185,7 @@ class User extends BaseController
     {
         // 已登录自动跳转
         if (Session::has('r_user')) {
-            return redirect((string) url('/user/index'));
+            return redirect($this->loginReturnTarget());
         }
 
         $sysConfigModel = new SysConfigModel();
@@ -260,12 +255,7 @@ class User extends BaseController
                                 $userModel->updateUserInfo($user->id, $userJson);
 
                                 // 跳转到之前访问的页面或默认页面
-                                $jumpUrl = Session::get('jump_url');
-                                if (empty($jumpUrl)) {
-                                    $jumpUrl = (string)url('/user/index');
-                                } else {
-                                    Session::delete('jump_url');
-                                }
+                                $jumpUrl = $this->loginReturnTarget();
                                 Session::set('wskey', md5($user->id . $user->password));
                                 return redirect($jumpUrl);
                             } else {
@@ -284,6 +274,14 @@ class User extends BaseController
         View::assign('enableEmail', Config::get('mailer.enable'));
         View::assign('avableRegisterCount', $avableRegisterCount);
         return view();
+    }
+
+    private function loginReturnTarget(): string
+    {
+        $target = Session::get('jump_url') ?: Session::get('jumpUrl');
+        Session::delete('jump_url');
+        Session::delete('jumpUrl');
+        return \app\service\RootRoutes::loginTarget($target);
     }
 
     public function update()

@@ -148,6 +148,35 @@ def main():
         issued = json.loads(run(php + [str(fixture)], environment, root))
         expect(issued["code"] == 200, "The API runtime must issue a valid robot sign-in credential")
         signkey = issued["token"]
+        # Persist upgrade-era return URLs with the real file-session driver.
+        session_fixture = root / "session-fixture.php"
+        session_fixture.write_text("""<?php
+require __DIR__.'/vendor/autoload.php';
+$app = new \\think\\App(__DIR__);
+$app->initialize();
+$app->setRuntimePath(__DIR__.'/runtime/media/');
+$fixture = json_decode($argv[1], true, 512, JSON_THROW_ON_ERROR);
+$app->session->setId($fixture['id']);
+if ($app->session->getId() !== $fixture['id']) throw new \\RuntimeException('Invalid fixture session ID');
+$app->session->init();
+foreach ($fixture['values'] as $key => $value) $app->session->set($key, $value);
+if ($fixture['authenticated']) {
+    $user = (new \\app\\media\\model\\UserModel())->find(1);
+    $app->session->set('r_user', $user);
+    $app->session->set('wskey', md5($user->id . $user->password));
+}
+$app->session->save();
+""", encoding="utf-8")
+        session_sequence = 0
+
+        def persisted_session(values, authenticated=False):
+            nonlocal session_sequence
+            session_sequence += 1
+            session_id = hashlib.sha256(str(session_sequence).encode()).hexdigest()[:32]
+            fixture = {"id": session_id, "values": values, "authenticated": authenticated}
+            run(php + [str(session_fixture), json.dumps(fixture)], environment, root)
+            expect((root / "runtime/media/session" / ("sess_" + session_id)).is_file(), "Upgrade fixture must persist to the actual media session directory")
+            return "RANDALLANJIESESSID=" + session_id
 
         http_port, fastcgi_port, ws_port = port(), port(), port()
         websocket = socketserver.ThreadingTCPServer(("127.0.0.1", ws_port), WebSocketStub)
@@ -229,6 +258,20 @@ def main():
                 status, _, body = request(path)
                 expect(status == 200 and b'id="menuButton"' in body and b"/user/login" in body, "Website root must directly render the media home page: " + path)
                 expect(re.search(rb'''["']/media(?:/|["'])''', body) is None, "Home page links must use root application routes")
+            for old, canonical in [
+                ("/media", "/"), ("/media/", "/"), ("/media.html", "/"),
+                ("/media/user/login", "/user/login"),
+                ("/media/user/index.html?trace=a%2Bb&next=/media", "/user/index.html?trace=a%2Bb&next=/media"),
+                ("/index.php/media/user/index?trace=old", "/user/index?trace=old"),
+                ("/?s=media/user/login&trace=a%2Bb", "/user/login?trace=a%2Bb"),
+                ("/index.php?%73=%2Fmedia%2Fuser%2Flogin&trace=old", "/user/login?trace=old"),
+                ("/?trace=a+b&s=ignored&%73=media/user/login&trace=a%20b", "/user/login?trace=a+b&trace=a%20b"),
+            ]:
+                status, headers, _ = request(old)
+                expect(status == 308 and headers.get("Location") == canonical, "Old media entry must redirect before authentication: " + old)
+                if "/user/login" in canonical or canonical == "/":
+                    expect(request(canonical)[0] == 200, "Canonical old entry must render without a redirect loop: " + old)
+            expect(request("/?s=media%2F%0D%0ALocation%3Aevil")[0] == 400, "Decoded compatibility route must not inject a redirect header")
             for path in ["/.env", "/hidden/.token", "/router.php", "/router.php/anything", "/danger.PHP", "/danger.php.txt"]:
                 status, _, body = request(path)
                 expect(status == 404 and b"MUST_NOT_LEAK" not in body, "Hidden/other PHP content must be denied: " + path)
@@ -238,6 +281,11 @@ def main():
                 expect(status == 200 and b'name="username"' in body and b'name="password"' in body, "Root application route must reach the actual login page: " + path)
             for path in ["/user/register", "/user/terms", "/user/privacy"]:
                 expect(request(path)[0] == 200, "Public user page must render without a login redirect: " + path)
+            for page, target in [("register", "login"), ("terms", "register"), ("privacy", "register")]:
+                status, _, body = request("/user/" + page + "/")
+                expect(status == 200 and ('href="/user/' + target + '"').encode() in body, "Public page links must resolve at the root even with a trailing slash: " + page)
+            status, headers, _ = request("/user/forgot/")
+            expect(status == 302 and headers.get("Location", "").startswith("/user/login"), "Disabled email recovery must return to the root login page")
             for path in ["/account/sign", "/account/sign.html", "/index/account/sign", "/index/account/sign.html", "/index.php/account/sign"]:
                 status, _, body = request(path + "?signkey=" + signkey)
                 expect(status == 200 and signkey.encode() in body and b"/account/sign" in body, "Anonymous robot link must render with a credential from the API runtime: " + path)
@@ -270,6 +318,7 @@ def main():
                 expect(status == 200 and json.loads(body)["msg"] == "pong", "The API application must remain available under /api: " + path)
             status, headers, _ = request("/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded"})
             expect(status in (301, 302) and "RANDALLANJIESESSID=" in headers.get("Set-Cookie", ""), "Initial admin must log in through real HTTP and receive a session cookie")
+            expect(headers.get("Location") == "/user/index", "Fresh login must redirect to the root user page")
             cookie = headers["Set-Cookie"].split(";", 1)[0]
             status, _, body = request("/admin/setting", headers={"Cookie": cookie})
             expect(status == 200 and b"siteName" in body, "Admin session must survive a subsequent HTTP request")
@@ -298,6 +347,67 @@ def main():
             login_cookie = headers["Set-Cookie"].split(";", 1)[0]
             status, headers, _ = request("/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded", "Cookie": login_cookie})
             expect(status in (301, 302) and headers.get("Location", "").endswith("/admin/lotteryList?keyword=route-fixture"), "Login must return to the requested root route and preserve its query")
+            # Old bookmarks first canonicalize, then preserve the root deep link through login.
+            status, headers, _ = request("/media/admin/lotteryList?keyword=upgrade-fixture")
+            expect(status == 308 and headers.get("Location") == "/admin/lotteryList?keyword=upgrade-fixture", "Legacy deep link must canonicalize")
+            status, headers, _ = request(headers["Location"])
+            expect(status == 302, "Protected canonical route must request login")
+            old_cookie = headers["Set-Cookie"].split(";", 1)[0]
+            login_body = urllib.parse.urlencode({"username": "admin", "password": "A123456"})
+            login_headers = {"Content-Type": "application/x-www-form-urlencoded", "Cookie": old_cookie}
+            status, headers, _ = request("/media/user/login", "POST", login_body, login_headers)
+            expect(status == 308 and headers.get("Location") == "/user/login", "Legacy login POST must use a method-preserving redirect")
+            status, headers, _ = request(headers["Location"], "POST", login_body, login_headers)
+            expect(status == 302 and headers.get("Location") == "/admin/lotteryList?keyword=upgrade-fixture", "Redirected old login POST must authenticate and preserve its canonical destination")
+            expect(request(headers["Location"], headers={"Cookie": old_cookie})[0] == 200, "Old bookmark login round trip must reach a real page")
+
+            origin = "http://127.0.0.1:" + str(http_port)
+            for key, target, expected in [
+                ("jump_url", "/media", "/"),
+                ("jump_url", "/media/user/index.html?trace=a%2Bb#saved", "/user/index.html?trace=a%2Bb#saved"),
+                ("jump_url", origin + "/media/user/index?trace=old", "/user/index?trace=old"),
+                ("jump_url", origin + "/index.php/media/user/index.html?trace=front", "/user/index.html?trace=front"),
+                ("jumpUrl", "/media/admin/lotteryList?keyword=legacy-key", "/admin/lotteryList?keyword=legacy-key"),
+                ("jump_url", "/index.php?s=/media/user/index&trace=old", "/user/index?trace=old"),
+                ("jump_url", "/user/index?next=/media", "/user/index?next=/media"),
+                ("jump_url", "/media/user/login.html", "/user/index"),
+                ("jump_url", "/user/register", "/user/index"),
+                ("jump_url", "/user/logout", "/user/index"),
+                ("jump_url", "https://outside.invalid/media", "/user/index"),
+                ("jump_url", "//outside.invalid/media", "/user/index"),
+                ("jump_url", "http://127.0.0.1:" + str(http_port + 1) + "/media", "/user/index"),
+                ("jump_url", "/media//outside.invalid", "/user/index"),
+                ("jump_url", "/media/\\outside.invalid", "/user/index"),
+                ("jump_url", "/media/user/index\r\nLocation:evil", "/user/index"),
+                ("jump_url", "/?s=media%2F%0D%0ALocation%3Aevil", "/user/index"),
+                ("jump_url", "/media/user/login/return/old", "/user/index"),
+                ("jump_url", ["/media"], "/user/index"),
+            ]:
+                upgrade_cookie = persisted_session({key: target})
+                status, headers, _ = request("/user/login", "POST", login_body, {"Content-Type": "application/x-www-form-urlencoded", "Cookie": upgrade_cookie})
+                expect(status == 302 and headers.get("Location") == expected, "Persisted login return target must canonicalize safely: " + repr(target))
+                destination = urllib.parse.urlsplit(expected)
+                expect(request(destination.path + ("?" + destination.query if destination.query else ""), headers={"Cookie": upgrade_cookie})[0] == 200, "Persisted return target must reach a real root page: " + repr(target))
+                status, headers, _ = request("/user/login", headers={"Cookie": upgrade_cookie})
+                expect(status == 302 and headers.get("Location") == "/user/index", "Login must consume the saved return target exactly once")
+            for page in ["/user/login", "/user/register"]:
+                upgrade_cookie = persisted_session({"jump_url": "/media/user/index?trace=logged-in", "jumpUrl": "/media"}, authenticated=True)
+                status, headers, _ = request(page, headers={"Cookie": upgrade_cookie})
+                expect(status == 302 and headers.get("Location") == "/user/index?trace=logged-in", "An authenticated upgrade session must canonicalize its return URL: " + page)
+                status, headers, _ = request(page, headers={"Cookie": upgrade_cookie})
+                expect(status == 302 and headers.get("Location") == "/user/index", "Both historical return keys must be cleared: " + page)
+
+            for saved_origin, host in [("http://upgrade.example:80", "upgrade.example"), ("http://upgrade.example", "upgrade.example:80")]:
+                upgrade_cookie = persisted_session({"jump_url": saved_origin + "/media/user/index?trace=default-port"})
+                status, headers, _ = request("/user/login", "POST", login_body, {"Content-Type": "application/x-www-form-urlencoded", "Cookie": upgrade_cookie, "Host": host})
+                expect(status == 302 and headers.get("Location") == "/user/index?trace=default-port", "Equivalent default ports must preserve same-site login destinations")
+
+            with sqlite3.connect(database) as db:
+                db.execute("UPDATE rc_config SET value = '-1' WHERE key = 'avableRegisterCount'")
+            register_cookie = persisted_session({"jumpUrl": origin + "/media/user/index?trace=registered"})
+            status, headers, _ = request("/user/register", "POST", urllib.parse.urlencode({"username": "routefixture", "password": "A123456", "email": "routefixture@example.test"}), {"Content-Type": "application/x-www-form-urlencoded", "Cookie": register_cookie})
+            expect(status == 302 and headers.get("Location") == "/user/index?trace=registered", "Registration must canonicalize a persisted old return URL")
+            expect(request(headers["Location"], headers={"Cookie": register_cookie})[0] == 200, "Registration redirect must preserve the new authenticated session")
             check_private_paths({"Cookie": cookie})
 
             with socket.create_connection(("127.0.0.1", http_port), timeout=5) as client:
@@ -327,7 +437,7 @@ def main():
             expect(status == 200 and trusted["PATH_INFO"] == "/proxy", "Proxy probe must preserve the root application route")
             expect(trusted["HTTP_X_FORWARDED_PROTO"] == "https" and trusted["HTTP_X_FORWARDED_HOST"] == "proxy.example:8090", "Explicitly trusted proxy must retain external HTTPS and Host")
             expect(trusted["HTTP_X_REAL_IP"] == "203.0.113.25" and trusted["HTTP_X_FORWARDED_PORT"] == "8090", "Explicitly trusted proxy must retain client IP and external port")
-            print("PASS: real root navigation/callbacks/images/API, cross-app robot sign-in/replay/daily limit, login return route, Caddy/FastCGI session/private paths, WebSocket and proxy trust")
+            print("PASS: real root navigation/callbacks/images/API, cross-app robot sign-in/replay/daily limit, legacy URLs and persisted login/register return sessions, Caddy/FastCGI session/private paths, WebSocket and proxy trust")
         except Exception:
             print(logs.read_text(encoding="utf-8", errors="replace")[-12000:])
             raise
