@@ -36,6 +36,9 @@ return [
     // 站内货币名称，由后台数据库设置覆盖。
     'currency_name' => 'R币',
 
+    // 首页公开群组入口，留空隐藏；由后台设置覆盖。
+    'telegram_group_url' => '',
+
     // 网站副标题/描述（原硬编码的"影视管理站"）：同样可被后台设置（rc_config.siteSubtitle）覆盖
     'app_subtitle' => '影视管理站',
 

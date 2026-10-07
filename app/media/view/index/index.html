@@ -106,19 +106,14 @@
             <!-- 桌面端导航 -->
             <div id="menu" class="hidden md:flex items-center space-x-8">
 
-                <a href="https://github.com/RandallAnjie/EmbyController" target="_blank" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                    </svg>
-                    <span>GitHub</span>
-                </a>
-
-                <a href="https://t.me/randall_home" target="_blank" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                {if config('app.telegram_group_url')}
+                <a href="{:siteConfigText('telegram_group_url')}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                     <span>Telegram群组</span>
                 </a>
+                {/if}
 
                 <button id="desktopChangelogButton" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,19 +175,14 @@
             <div id="mobileMenu" class="mobile-menu absolute top-full left-0 right-0 mt-2 p-4 md:hidden">
                 <div class="glass-effect rounded-lg p-4 flex flex-col space-y-4">
 
-                    <a href="https://github.com/RandallAnjie/EmbyController" target="_blank" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                        </svg>
-                        <span>GitHub</span>
-                    </a>
-
-                    <a href="https://t.me/randall_home" target="_blank" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                    {if config('app.telegram_group_url')}
+                    <a href="{:siteConfigText('telegram_group_url')}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
                         <span>Telegram群组</span>
                     </a>
+                    {/if}
 
                     <button id="mobileChangelogButton" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

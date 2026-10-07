@@ -52,6 +52,7 @@ class SettingsSchema
                 'tgBotUsername' => ['机器人用户名', 'text', '', 'TG_BOT_USERNAME', 'telegram.botConfig.bots.randallanjie_bot.username'],
                 'tgBotAdminId' => ['Telegram 管理员 ID', 'text', '', 'TG_BOT_ADMIN_ID', 'telegram.adminId'],
                 'tgBotGroupId' => ['Telegram 群组 ID', 'text', '', 'TG_BOT_GROUP_ID', 'telegram.groupSetting.chat_id'],
+                'tgGroupUrl' => ['Telegram 群组链接', 'url', '', null, 'app.telegram_group_url', ['help' => '首页菜单的公开群组或邀请链接，例如 https://t.me/your_group；留空隐藏入口，与机器人通知群组 ID 分开设置']],
                 'tgBotGroupNotify' => ['启用群组通知', 'bool', false, 'TG_BOT_GROUP_NOTIFY', 'telegram.groupSetting.allow_notify'],
                 'tgWebhookSecret' => ['Webhook 校验密钥', 'secret', '', 'TG_BOT_WEBHOOK_SECRET', 'telegram.webhookSecret'],
             ],

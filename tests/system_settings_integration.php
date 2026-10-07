@@ -47,6 +47,14 @@ function settingHtml(think\App $app): string {
     View::assign('enableMoviepilot', false);
     return (new Admin($app))->setting()->getContent();
 }
+function homepageHtml(string $template): string {
+    View::assign('allRegisterUserCount', 1);
+    View::assign('activateRegisterUserCount', 1);
+    View::assign('deactivateRegisterUserCount', 0);
+    View::assign('todayLoginUserCount', 1);
+    View::assign('latestMediaComment', []);
+    return View::fetch($template);
+}
 function controls(string $html): array {
     $document = new DOMDocument();
     $previous = libxml_use_internal_errors(true);
@@ -107,6 +115,14 @@ try {
     expect(Db::name('config')->count() === $rowCount, 'Initialization is not idempotent');
     SystemSettings::apply($app, true);
     Session::set('r_user', new app\media\model\UserModel(['id' => 1, 'userName' => 'admin', 'authority' => 0]));
+    expect($defaults['tgGroupUrl'] === '', 'Homepage group link must be empty on a new installation');
+    foreach (['index/index', 'index/test'] as $template) {
+        $homepage = homepageHtml($template);
+        [, $homepageXPath] = controls($homepage);
+        expect($homepageXPath->query('//nav//a[contains(@href, "github.com")]')->length === 0, 'Default homepage still has a GitHub menu: ' . $template);
+        expect(!str_contains($homepage, 'https://t.me/randall_home'), 'Default homepage contains a hardcoded Telegram address: ' . $template);
+        expect($homepageXPath->query('//nav//a[normalize-space(.)="Telegram群组"]')->length === 0, 'Unconfigured Telegram menu must be hidden: ' . $template);
+    }
     $html = settingHtml($app);
     [$formControls] = controls($html);
     foreach (SystemSettings::definitions() as $key => $field) {
@@ -121,6 +137,7 @@ try {
 
     $secret = 'integration-secret-marker-73129';
     $xfyunSecret = 'integration-xfyun-marker-42819';
+    $groupUrl = 'https://t.me/+integration_fixture?start=join&ref=homepage';
     $response = postSettings($app, [
         'siteName' => 'Integration Site', 'siteSubtitle' => '', 'appHost' => 'https://settings.example.com',
         'embyUrlBase' => 'http://emby.example.com:8096/emby/', 'embyApiKey' => $secret,
@@ -128,6 +145,7 @@ try {
         'payMethods' => '["alipay"]', 'xfyunList' => json_encode(['test' => ['appid' => 'test-app', 'apikey' => $xfyunSecret, 'apisecret' => 'test-signature']]),
         'appDebug' => '0', 'redisDb' => '8', 'clientList' => '["Emby"]', 'clientBlackList' => '[]',
         'telegramRules' => '[]', 'signInMinAmount' => '0', 'signInMaxAmount' => '1.5',
+        'tgGroupUrl' => $groupUrl,
     ]);
     expect($response['code'] === 200, 'Valid Admin POST failed: ' . json_encode($response));
     $values = SystemSettings::all(true);
@@ -143,12 +161,35 @@ try {
     expect($xpath->query('//*[@data-secret-status="embyApiKey" and contains(text(), "已配置")]')->length === 1, 'Secret state missing');
     echo "PASS: Admin POST persists typed settings and applies configuration; full HTML hides password and JSON secrets.\n";
 
+    expect($values['tgGroupUrl'] === $groupUrl && $app->config->get('app.telegram_group_url') === $groupUrl, 'Group link was not persisted and applied');
+    expect($formControls['tgGroupUrl'][0]->getAttribute('value') === $groupUrl, 'Group link was not returned in the Admin form');
+    foreach (['index/index', 'index/test'] as $template) {
+        $homepage = homepageHtml($template);
+        [, $homepageXPath] = controls($homepage);
+        expect(str_contains($homepage, 'href="https://t.me/+integration_fixture?start=join&amp;ref=homepage"'), 'Group link attribute was not escaped: ' . $template);
+        $links = $homepageXPath->query('//nav//a[normalize-space(.)="Telegram群组"]');
+        expect($links->length === 2, 'Configured group link is missing in desktop/mobile menus: ' . $template);
+        foreach (['menu', 'mobileMenu'] as $menu) {
+            $links = $homepageXPath->query('//nav//*[@id="' . $menu . '"]//a[normalize-space(.)="Telegram群组"]');
+            expect($links->length === 1 && $links->item(0)->getAttribute('href') === $groupUrl, 'Wrong group link in ' . $menu . ': ' . $template);
+        }
+        expect($homepageXPath->query('//nav//a[contains(@href, "github.com")]')->length === 0, 'Configured homepage reintroduced GitHub menu: ' . $template);
+    }
+    $response = postSettings($app, ['tgGroupUrl' => '']);
+    expect($response['code'] === 200 && SystemSettings::get('tgGroupUrl') === '' && $app->config->get('app.telegram_group_url') === '', 'Clearing group link failed');
+    foreach (['index/index', 'index/test'] as $template) {
+        [, $homepageXPath] = controls(homepageHtml($template));
+        expect($homepageXPath->query('//nav//a[normalize-space(.)="Telegram群组"]')->length === 0, 'Cleared Telegram menu is still visible: ' . $template);
+    }
+    echo "PASS: Both homepage templates remove GitHub; Telegram links follow Admin configuration, escape attributes and hide when cleared.\n";
+
     $response = postSettings($app, ['embyApiKey' => '', 'xfyunList' => '']);
     expect($response['code'] === 200 && SystemSettings::get('embyApiKey') === $secret && SystemSettings::get('xfyunList')['test']['apikey'] === $xfyunSecret, 'Blank secrets were not preserved');
     $before = SystemSettings::all(true);
     foreach ([
         ['siteName' => 'Must Not Save', 'embyLineList' => '{broken-json', 'embyApiKey' => 'Must Not Save Secret'],
         ['siteName' => 'Must Not Save', 'appHost' => 'javascript:alert(1)'],
+        ['siteName' => 'Must Not Save', 'tgGroupUrl' => 'javascript:alert(1)'],
         ['siteName' => 'Must Not Save', 'DB_PASS' => 'attempted-env-override'],
         ['siteName' => 'Must Not Save', 'signInMinAmount' => '3', 'signInMaxAmount' => '1'],
         ['siteName' => 'Must Not Save', 'clearSecrets' => 'bad-shape'],
