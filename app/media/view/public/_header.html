@@ -193,7 +193,7 @@ function initWebSocket() {
                         // 如果在消息列表页面，自动更新未读状态
                         if (window.location.pathname === '/media/user/notifications') {
                             if (message.fromUserId === 0) {
-                                document.getElementById('msg-0-msg').innerHTML = message.message;
+                                document.getElementById('msg-0-msg').textContent = message.message;
                                 document.getElementById('msg-0-time').innerHTML = message.createdAt;
                                 document.getElementById('msg-0').children[0].classList.add('border-l-blue-500');
                             } else {
@@ -211,7 +211,7 @@ function initWebSocket() {
                                                 </div>
                                                 <div class="max-w-[80%] md:max-w-[90%]">
                                                     <h3 class="font-semibold">${message.fromNickName?message.fromNickName:message.fromUserName}</h3>
-                                                    <p class="text-white-60 mt-1 line-clamp-1">${message.fromNickName?message.fromNickName:message.fromUserName}: ${message.message}</p>
+                                                    <p class="text-white-60 mt-1 line-clamp-1">${message.fromNickName?message.fromNickName:message.fromUserName}: ${escapeHtmlText(message.message)}</p>
                                                     <span class="text-sm text-white-40 mt-2 block">${message.createdAt}</span>
                                                 </div>
                                             </div>
@@ -230,7 +230,7 @@ function initWebSocket() {
                                     }
                                 }
                             }
-                            rStatusMessage.info(message.fromUserName + ": " + message.message, '新消息');
+                            rStatusMessage.info(escapeHtmlText(message.fromUserName + ": " + message.message), '新消息');
                         } else if (window.location.pathname.includes('/media/user/notificationDetail')) {
                             // 获取当前聊天用户id，即当前页面的url中的id参数
                             const currentUserId = parseInt(window.location.search.split('=')[1]);
@@ -251,10 +251,10 @@ function initWebSocket() {
 
                                 ob.observe(messageElement);
                             } else {
-                                rStatusMessage.info(message.fromUserName + ": " + message.message, '新消息');
+                                rStatusMessage.info(escapeHtmlText(message.fromUserName + ": " + message.message), '新消息');
                             }
                         } else {
-                            rStatusMessage.info(message.fromUserName + ": " + message.message, '新消息');
+                            rStatusMessage.info(escapeHtmlText(message.fromUserName + ": " + message.message), '新消息');
                         }
                     }
                     break;
@@ -278,7 +278,7 @@ function initWebSocket() {
                                                 </div>
                                                 <div class="max-w-[80%] md:max-w-[90%]">
                                                     <h3 class="font-semibold">${message.toNickName?message.toNickName:message.toUserName}</h3>
-                                                    <p class="text-white/60 mt-1 line-clamp-1">${message.message}</p>
+                                                    <p class="text-white/60 mt-1 line-clamp-1">${escapeHtmlText(message.message)}</p>
                                                     <span class="text-sm text-white-40 mt-2 block">${message.createdAt}</span>
                                                 </div>
                                             </div>

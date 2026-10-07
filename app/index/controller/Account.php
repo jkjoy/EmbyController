@@ -87,7 +87,7 @@ class Account extends BaseController
                         'action' => 4,
                         'count' => $score,
                         'recordInfo' => [
-                            'message' => '签到获取' . $score . 'R币',
+                            'message' => '签到获取' . $score . currencyName(),
                         ]
                     ]);
                     Db::commit();
@@ -96,8 +96,8 @@ class Account extends BaseController
                     return json(['code' => 400, 'message' => '签到失败，请稍后重试']);
                 }
 
-                sendTGMessage($userId, "签到成功！今日签到获取" . $score . "R币");
-                return json(['code' => 200, 'message' => '签到成功！今日签到获取' . $score . 'R币']);
+                sendTGMessage($userId, "签到成功！今日签到获取" . $score . currencyNameHtml());
+                return json(['code' => 200, 'message' => '签到成功！今日签到获取' . $score . currencyName()]);
             } else {
                 return json(['code' => 401, 'message' => '签到失败']);
             }

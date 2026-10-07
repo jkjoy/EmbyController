@@ -77,8 +77,9 @@ function renderRecordList(list) {
             <td class="py-3 px-4">${getActionText(item.action)}</td>
             <td class="py-3 px-4">${item.count}</td>
             <td class="py-3 px-4">${item.createdAt}</td>
-            <td class="py-3 px-4">${item.recordInfo.message}</td>
+            <td class="py-3 px-4" data-record-message></td>
         `;
+        tr.querySelector('[data-record-message]').textContent = item.recordInfo.message ?? '';
         tbody.appendChild(tr);
     });
 }

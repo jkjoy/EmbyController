@@ -198,6 +198,9 @@
 
 {if $canSign}
 <script>
+    const signCurrencyName = <?php echo json_encode(currencyName(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const signInvitation = '您今天还没有签到，点我签到，获取随机' + signCurrencyName;
+    const signRetryMessage = '请检查环境后，刷新后重新签到，获取随机' + signCurrencyName;
     var bobol = null;
     var tokenG = null;
     var loading = false;
@@ -208,7 +211,7 @@
                 sitekey: '{$sitekey}',
                 callback: function(token) {
                     tokenG = token;
-                    document.getElementById('sign-text').innerText = '您今天还没有签到，点我签到，获取随机R币';
+                    document.getElementById('sign-text').innerText = signInvitation;
                 }
             });
         });
@@ -218,12 +221,12 @@
             }
             if (event.data && event.data.token) {
                 tokenG = event.data.token;
-                document.getElementById('sign-text').innerText = '您今天还没有签到，点我签到，获取随机R币';
+                document.getElementById('sign-text').innerText = signInvitation;
             }
         });
 
     } else {
-        bobol = rShowMessage('<p id="sign-text" onclick="goToSign()">您今天还没有签到，点我签到，获取随机R币</p>', 0, 'up', 0);
+        bobol = rShowMessage('<p id="sign-text" onclick="goToSign()">' + escapeHtmlText(signInvitation) + '</p>', 0, 'up', 0);
     }
 
 
@@ -249,17 +252,17 @@
             data: data,
             success: function (res) {
                 if (res.code === 200) {
-                    rShowMessage(res.message, 0, 'up', 2000);
+                    rShowMessage(escapeHtmlText(res.message), 0, 'up', 2000);
                     rChangeMessage(bobol, '今日已成功签到，按住气泡往右滑动即可关闭气泡通知～');
                 } else {
-                    rShowMessage(res.message, 0, 'up', 2000);
-                    rChangeMessage(bobol, '请检查环境后，刷新后重新签到，获取随机R币');
+                    rShowMessage(escapeHtmlText(res.message), 0, 'up', 2000);
+                    rChangeMessage(bobol, escapeHtmlText(signRetryMessage));
                 }
             },
             error: function (err) {
                 console.error(err);
                 rShowMessage('签到失败，请稍后再试', 0, 'up', 2000);
-                rChangeMessage(bobol, '请检查环境后，刷新后重新签到，获取随机R币');
+                rChangeMessage(bobol, escapeHtmlText(signRetryMessage));
             },
             complete: function () {
                 loading = false;

@@ -34,6 +34,9 @@ class MediaAuth
         $url = str_replace('http://'.$_SERVER['HTTP_HOST'], '', $url);
         $url = str_replace('https://'.$_SERVER['HTTP_HOST'], '', $url);
 
+        $isRedeemRequest = preg_match('~\A/media/server/redeemCode(?:\.html)?/?\z~i',
+            (string) parse_url($url, PHP_URL_PATH)) === 1;
+
         if ($url == '/media' || $url == '/media/') {
             $url = '/media/index/index';
         }
@@ -62,11 +65,17 @@ class MediaAuth
             }
         }
         if ((empty($user)) && !$flag) {
+            if ($isRedeemRequest) {
+                return json(['code' => 401, 'message' => '请先登录'], 401);
+            }
             Session::set('jumpUrl', $request->url(true));
             return redirect((string)url('/media/user/login'));
         }
         if (isset($user['authority']) && $user['authority'] < 0) {
             Session::delete('r_user');
+            if ($isRedeemRequest) {
+                return json(['code' => 403, 'message' => '账号已禁用'], 403);
+            }
             Session::set('jumpUrl', $request->url(true));
             return redirect((string)url('/media/user/login'));
         }

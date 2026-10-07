@@ -199,7 +199,7 @@
                         document.getElementById('load-more').style.display = 'none';
                     }
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
             }
         });
@@ -270,7 +270,7 @@
                     rStatusMessage.success('评论成功');
                     window.location.reload();
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
             }
         });
@@ -302,7 +302,7 @@
                     stopMainLoading()
                     openCommentDialog(commentId);
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
             }
         });

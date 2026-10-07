@@ -1046,7 +1046,7 @@ class Telegram extends BaseController
             ->field('rc_telegram_user.*, rc_user.nickName, rc_user.userName, rc_user.rCoin, rc_user.authority, rc_user.userInfo as userInfoFromUser')
             ->find();
         if ($user) {
-            return '您的余额是： <strong>' . number_format($user['rCoin'], 2) . '</strong> R币';
+            return '您的余额是： <strong>' . number_format($user['rCoin'], 2) . '</strong> ' . currencyNameHtml();
         } else {
             return '请先绑定账号';
         }

@@ -15,6 +15,7 @@ use think\facade\Config;
 use think\facade\Cache;
 use think\facade\Db;
 use app\media\model\ExchangeCodeModel;
+use app\service\ExchangeCodes;
 
 class Admin extends BaseController
 {
@@ -338,7 +339,7 @@ class Admin extends BaseController
                 $message[] = [
                     'role' => 'system',
                     'time' => date('Y-m-d H:i:s'),
-                    'content' => '管理员(#' . Session::get('r_user')->id . ')奖励给您了' . $reward . 'R币',
+                    'content' => '管理员(#' . Session::get('r_user')->id . ')奖励给您了' . $reward . currencyName(),
                 ];
 
                 Db::startTrans();
@@ -352,7 +353,7 @@ class Admin extends BaseController
                         'action' => 8,
                         'count' => $reward,
                         'recordInfo' => [
-                            'message' => '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . 'R币',
+                            'message' => '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . currencyName(),
                         ]
                     ]);
 
@@ -365,7 +366,7 @@ class Admin extends BaseController
                     return json(['code' => 400, 'message' => '奖励失败，请稍后重试']);
                 }
 
-                sendStationMessage($request->requestUserId, '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . 'R币');
+                sendStationMessage($request->requestUserId, '管理员(#' . Session::get('r_user')->id . ')已在您的工单(#' . $data['requestId'] . ')奖励给您了' . $reward . currencyName());
                 return json(['code' => 200, 'message' => '奖励成功', 'messageRecord' => json_encode($message)]);
             } else {
                 return json(['code' => 400, 'message' => '工单已关闭，无法操作']);
@@ -639,9 +640,10 @@ class Admin extends BaseController
     // 兑换码列表页面
     public function exchangeCodeList()
     {
-        $page = input('page', 1);
-        $pageSize = input('pageSize', 10);
+        $page = filter_var(input('page', 1), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 1000000]]) ?: 1;
+        $pageSize = filter_var(input('pageSize', 10), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 100]]) ?: 10;
         $keyword = input('keyword', '');
+        $keyword = is_string($keyword) ? mb_substr(trim($keyword), 0, 200) : '';
 
         $exchangeCodeModel = new ExchangeCodeModel();
         $query = $exchangeCodeModel;
@@ -658,11 +660,11 @@ class Admin extends BaseController
         }
 
         // 先获取总数
-        $total = $query->count();
+        $total = (clone $query)->count();
 
-        // 再获取当前页数据，并按创建时间倒序排序
+        // 按主键稳定倒序，避免同批生成时间相同导致分页重复。
         $list = $query->page($page, $pageSize)
-            ->order('createdAt', 'desc')
+            ->order('id', 'desc')
             ->select()
             ->each(function($item) {
                 // 解析 JSON 字段
@@ -679,127 +681,38 @@ class Admin extends BaseController
         ]);
     }
 
-    // 生成随机兑换码
-    private function generateCode($length = 16) {
-        $chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#-';
-        $code = '';
-        for ($i = 0; $i < $length; $i++) {
-            $code .= $chars[random_int(0, strlen($chars) - 1)];
-        }
-        return $code;
-    }
-
-    // 添加兑换码
+    // 生成单个或批量兑换码，全部校验与批次写入由共享服务处理。
     public function addExchangeCode()
     {
-        if (request()->isPost()) {
-            $data = input('post.');
-            $mode = $data['mode'] ?? 'single';
-
-            try {
-                $baseData = [
-                    'exchangeType' => $data['exchangeType'],
-                    'exchangeCount' => $data['exchangeCount'],
-                    'type' => 0, // 未使用
-                    'codeInfo' => [
-                        'remark' => $data['remark'] ?? ''
-                    ]
-                ];
-
-                if ($mode === 'single') {
-                    // 单个添加
-                    $exchangeCodeModel = new ExchangeCodeModel();
-                    $baseData['code'] = $this->generateCode();
-                    if ($exchangeCodeModel->save($baseData)) {
-                        return json(['code' => 200, 'msg' => '添加成功', 'data' => ['codes' => [$baseData['code']]]]);
-                    }
-                } else {
-                    // 批量添加
-                    $generateCount = min(100, max(1, intval($data['generateCount'])));
-                    $codes = [];
-                    $successCount = 0;
-
-                    // 使用事务确保批量添加的原子性
-                    $exchangeCodeModel = new ExchangeCodeModel();
-                    $exchangeCodeModel->startTrans();
-
-                    try {
-                        for ($i = 0; $i < $generateCount; $i++) {
-                            $newData = $baseData;
-                            $newData['code'] = $this->generateCode();
-                            // 每次创建新的模型实例
-                            $model = new ExchangeCodeModel();
-                            if ($model->save($newData)) {
-                                $codes[] = $newData['code'];
-                                $successCount++;
-                            }
-                        }
-
-                        if ($successCount === $generateCount) {
-                            $exchangeCodeModel->commit();
-                            return json([
-                                'code' => 200,
-                                'msg' => "成功生成 {$successCount} 个兑换码",
-                                'data' => ['codes' => $codes]
-                            ]);
-                        } else {
-                            $exchangeCodeModel->rollback();
-                            return json(['code' => 400, 'msg' => "部分兑换码生成失败"]);
-                        }
-                    } catch (\Exception $e) {
-                        $exchangeCodeModel->rollback();
-                        throw $e;
-                    }
-                }
-
-                return json(['code' => 400, 'msg' => '添加失败']);
-            } catch (\Exception $e) {
-                return json(['code' => 400, 'msg' => $e->getMessage()]);
-            }
+        if (!Request::isPost()) return view('admin/exchangeCode/add');
+        try {
+            $result = ExchangeCodes::generate(Request::post());
+            return json(['code' => 200, 'msg' => '成功生成' . count($result['codes']) . '个兑换码', 'data' => $result]);
+        } catch (\DomainException $e) {
+            return json(['code' => $e->getCode() ?: 400, 'msg' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            trace('生成兑换码失败', 'error');
+            return json(['code' => 500, 'msg' => '生成失败，请稍后重试']);
         }
-
-        return view('admin/exchangeCode/add');
     }
 
-    // 禁用/启用兑换码
+    // 保留旧参数语义：status=true禁用，status=false启用。
     public function changeExchangeCodeStatus()
     {
-        if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return json(['code' => 403, 'msg' => '无权操作']);
-        }
-
-        $id = input('id');
-        $status = input('status');
-
-        if (empty($id)) {
+        if (!Request::isPost()) return json(['code' => 405, 'msg' => '请使用POST请求']);
+        $id = filter_var(Request::post('id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $status = Request::post('status');
+        if ($id === false || !in_array($status, [true, false, 'true', 'false'], true)) {
             return json(['code' => 400, 'msg' => '参数错误']);
         }
-
-        $exchangeCodeModel = new ExchangeCodeModel();
-
-        // 检查是否存在
-        $code = $exchangeCodeModel->where('id', $id)->find();
-        if (!$code) {
-            return json(['code' => 404, 'msg' => '兑换码不存在']);
-        }
-
-        // 如果已经被使用，不允许修改状态
-        if ($code['type'] == 1) {
-            return json(['code' => 400, 'msg' => '已使用的兑换码无法修改状态']);
-        }
-
-        // 修改状态
-        $status = $status === 'true' || $status === true;
-        $type = $status ? -1 : 0;  // true则禁用(-1)，false则启用(0)
-
         try {
-            $result = $exchangeCodeModel->where('id', $id)->update(['type' => $type]);
-            if ($result !== false) {
-                return json(['code' => 200, 'msg' => '状态更新成功']);
-            }
-            return json(['code' => 500, 'msg' => '状态更新失败']);
-        } catch (\Exception $e) {
-            return json(['code' => 500, 'msg' => '状态更新失败：' . $e->getMessage()]);
+            ExchangeCodes::setDisabled($id, $status === true || $status === 'true');
+            return json(['code' => 200, 'msg' => '状态更新成功']);
+        } catch (\DomainException $e) {
+            return json(['code' => $e->getCode() ?: 400, 'msg' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            trace('更新兑换码状态失败', 'error');
+            return json(['code' => 500, 'msg' => '状态更新失败，请稍后重试']);
         }
     }
 

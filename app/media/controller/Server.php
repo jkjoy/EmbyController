@@ -6,7 +6,7 @@ use app\media\model\MediaHistoryModel;
 use app\BaseController;
 use app\media\model\EmbyDeviceModel;
 use app\media\model\EmbyUserModel as EmbyUserModel;
-use app\media\model\ExchangeCodeModel;
+use app\service\ExchangeCodes;
 use app\media\model\FinanceRecordModel;
 use app\media\model\PayRecordModel;
 use app\media\model\SysConfigModel as SysConfigModel;
@@ -605,90 +605,7 @@ class Server extends BaseController
 
     public function activateEmbyUserByCode()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/media/user/login');
-        }
-        if (Request::isPost()) {
-            $userId = Session::get('r_user')->id;
-            $data = Request::post();
-            $code = $data['code'];
-            $embyUserModel = new EmbyUserModel();
-            $embyUser = $embyUserModel->where('userId', $userId)->find();
-            $embyUserId = $embyUser->embyId;
-            $exchangeCodeModel = new ExchangeCodeModel();
-            $exchangeCode = $exchangeCodeModel->where('code', $code)->find();
-            if (!($exchangeCode && $exchangeCode['type'] == 0 && $exchangeCode['exchangeType'] == 1)) {
-                return json([
-                    'code' => 400,
-                    'message' => '无效的兑换码'
-                ]);
-            }
-
-            // 原子占用兑换码，防止并发重复使用；激活失败再释放
-            $claimed = (new ExchangeCodeModel())
-                ->where('code', $code)
-                ->where('type', 0)
-                ->update([
-                    'type' => 1,
-                    'usedByUserId' => $userId,
-                    'exchangeDate' => date('Y-m-d H:i:s', time())
-                ]);
-            if (!$claimed) {
-                return json([
-                    'code' => 400,
-                    'message' => '无效的兑换码'
-                ]);
-            }
-
-            $url = Config::get('media.urlBase') . 'Users/' . $embyUserId . '/Policy?api_key=' . Config::get('media.apiKey');
-            $profile = $this->getTmpUserProfile();
-            $profile['IsDisabled'] = false;
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'accept: */*',
-                'Content-Type: application/json'
-            ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($profile));
-            $response = curl_exec($ch);
-            if (curl_getinfo($ch, CURLINFO_HTTP_CODE) == 200 || curl_getinfo($ch, CURLINFO_HTTP_CODE) == 204) {
-                $activateTo = date('Y-m-d H:i:s', time() + 86400);
-                $embyUser->activateTo = $activateTo;
-                $embyUser->save();
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $userId,
-                    'action' => 2,
-                    'count' => $code,
-                    'recordInfo' => [
-                        'message' => '使用兑换码' . $code . '激活Emby账号'
-                    ]
-                ]);
-                sendTGMessage($userId, '您的Emby账号已激活');
-                return json([
-                    'code' => 200,
-                    'message' => '激活成功'
-                ]);
-            } else {
-                // 激活失败，释放兑换码
-                (new ExchangeCodeModel())
-                    ->where('code', $code)
-                    ->update([
-                        'type' => 0,
-                        'usedByUserId' => null,
-                        'exchangeDate' => null
-                    ]);
-                return json([
-                    'code' => 400,
-                    'message' => $response ?: '激活失败，请稍后重试'
-                ]);
-            }
-        }
+        return $this->redeemExchangeCode([1]);
     }
 
     public function continueSubscribeEmbyUserByBalance()
@@ -764,89 +681,7 @@ class Server extends BaseController
 
     public function continueSubscribeEmbyUserByCode()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/media/user/login');
-        }
-        if (Request::isPost()) {
-            $userId = Session::get('r_user')->id;
-            $data = Request::post();
-            $code = $data['code'];
-            $exchangeCodeModel = new ExchangeCodeModel();
-            $exchangeCode = $exchangeCodeModel->where('code', $code)->find();
-            if (!($exchangeCode && $exchangeCode['type'] == 0 && ($exchangeCode['exchangeType'] == 2 || $exchangeCode['exchangeType'] == 3))) {
-                return json([
-                    'code' => 400,
-                    'message' => '无效的兑换码'
-                ]);
-            }
-
-            $seconds = $exchangeCode['exchangeType'] == 2 ? (86400 * $exchangeCode['exchangeCount']) : (2592000 * $exchangeCode['exchangeCount']);
-
-            Db::startTrans();
-            try {
-                // 锁定到期时间，保证并发续期正确累加
-                $embyUser = (new EmbyUserModel())->where('userId', $userId)->lock(true)->find();
-                $activateTo = $embyUser['activateTo'];
-                if ($activateTo == null) {
-                    Db::rollback();
-                    return json([
-                        'code' => 400,
-                        'message' => 'LifeTime用户无需续期'
-                    ]);
-                }
-
-                // 原子占用兑换码，防止并发重复使用
-                $claimed = (new ExchangeCodeModel())
-                    ->where('code', $code)
-                    ->where('type', 0)
-                    ->update([
-                        'type' => 1,
-                        'usedByUserId' => $userId,
-                        'exchangeDate' => date('Y-m-d H:i:s', time())
-                    ]);
-                if (!$claimed) {
-                    Db::rollback();
-                    return json([
-                        'code' => 400,
-                        'message' => '无效的兑换码'
-                    ]);
-                }
-
-                if (strtotime($activateTo) > time()) {
-                    $activateTo = date('Y-m-d H:i:s', strtotime($activateTo) + $seconds);
-                } else {
-                    $activateTo = date('Y-m-d H:i:s', time() + $seconds);
-                }
-                $embyUser->activateTo = $activateTo;
-                $embyUser->save();
-
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $userId,
-                    'action' => 2,
-                    'count' => $code,
-                    'recordInfo' => [
-                        'message' => '使用兑换码' . $code . '续期Emby账号'
-                    ]
-                ]);
-                Db::commit();
-            } catch (\Exception $e) {
-                Db::rollback();
-                return json([
-                    'code' => 400,
-                    'message' => '续期失败，请稍后重试'
-                ]);
-            }
-
-            sendTGMessage($userId, '您的Emby账号已续期至 <strong>' . $activateTo . '</strong>');
-
-            return json([
-                'code' => 200,
-                'message' => '续期成功'
-            ]);
-        }
+        return $this->redeemExchangeCode([2, 3]);
     }
 
     public function continueSubscribeEmbyUserToLifetimeByRCoin()
@@ -940,88 +775,50 @@ class Server extends BaseController
         }
     }
 
-    public function exchangeCode()
+    public function redeemCode()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/media/user/login');
-        }
-        if (Request::isPost()) {
-            $userId = Session::get('r_user')->id;
-            $data = Request::post();
-            $code = $data['code'];
-            $exchangeCodeModel = new ExchangeCodeModel();
-            $exchangeCode = $exchangeCodeModel->where('code', $code)->find();
-            if (!($exchangeCode && $exchangeCode['type'] == 0 && $exchangeCode['exchangeType'] == 4)) {
-                return json([
-                    'code' => 400,
-                    'message' => '无效的兑换码，请检查兑换码和其类型是否正确，或者兑换码是否已被使用'
-                ]);
-            }
-
-            $exchangeCount = $exchangeCode['exchangeCount'];
-
-            Db::startTrans();
-            try {
-                // 原子占用兑换码（仅当仍未被使用），按受影响行数判断，防止并发重复兑换
-                $claimed = (new ExchangeCodeModel())
-                    ->where('code', $code)
-                    ->where('type', 0)
-                    ->update([
-                        'type' => 1,
-                        'usedByUserId' => $userId,
-                        'exchangeDate' => date('Y-m-d H:i:s', time())
-                    ]);
-                if (!$claimed) {
-                    Db::rollback();
-                    return json([
-                        'code' => 400,
-                        'message' => '无效的兑换码，请检查兑换码和其类型是否正确，或者兑换码是否已被使用'
-                    ]);
-                }
-
-                // 原子加币
-                (new UserModel())->where('id', $userId)->inc('rCoin', $exchangeCount)->update();
-
-                // 添加充值记录
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $userId,
-                    'action' => 2,
-                    'count' => $code,
-                    'recordInfo' => [
-                        'message' => '使用兑换码' . $code . '充值' . $exchangeCount . 'R币'
-                    ]
-                ]);
-                Db::commit();
-            } catch (\Exception $e) {
-                Db::rollback();
-                return json([
-                    'code' => 400,
-                    'message' => '兑换失败，请稍后重试'
-                ]);
-            }
-
-            // 读取最新余额用于展示与同步
-            $user = (new UserModel())->where('id', $userId)->find();
-            $rCoin = sprintf("%.2f", $user->rCoin);
-
-            sendTGMessage($userId, '您已经成功兑换了 <strong>' . $exchangeCount . '</strong> R币，当前余额为 <strong>' . $rCoin . '</strong>');
-
-            // 更新Session
-            $r_user = Session::get('r_user');
-            $r_user->rCoin = $user->rCoin;
-            Session::set('r_user', $r_user);
-
-            return json([
-                'code' => 200,
-                'message' => '兑换成功',
-                'rCoin' => $rCoin
-            ]);
-        }
+        return $this->redeemExchangeCode();
     }
 
+    private function redeemExchangeCode(?array $allowedTypes = null)
+    {
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用POST请求']);
+        $user = Session::get('r_user');
+        $userId = is_array($user) || $user instanceof \ArrayAccess ? (int) ($user['id'] ?? 0) : (int) ($user->id ?? 0);
+        if ($userId <= 0) return json(['code' => 401, 'message' => '请先登录']);
+        try {
+            $result = ExchangeCodes::redeem($userId, Request::post('code'), $allowedTypes);
+        } catch (\DomainException $e) {
+            return json(['code' => $e->getCode() ?: 400, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            trace('兑换码处理失败', 'error');
+            return json(['code' => 400, 'message' => '兑换失败，请稍后重试']);
+        }
+
+        // 兑换已提交，通知或Session故障不能把成功回应改成失败，避免用户误以为码未消费。
+        try {
+            if (is_array($user)) $user['rCoin'] = $result['rCoin'];
+            else $user->rCoin = $result['rCoin'];
+            Session::set('r_user', $user);
+            if ($result['exchangeType'] === 4) {
+                sendTGMessage($userId, '您已经成功兑换了 <strong>' . $result['exchangeCount'] . '</strong> ' . currencyNameHtml()
+                    . '，当前余额为 <strong>' . $result['rCoin'] . '</strong>');
+            } else {
+                sendTGMessage($userId, '您的Emby账号已续期至 <strong>' . $result['activateTo'] . '</strong>');
+            }
+        } catch (\Throwable $e) {
+            trace('兑换已成功，但通知或Session更新失败', 'warning');
+        }
+        $message = $result['exchangeType'] === 4
+            ? '成功兑换' . $result['exchangeCount'] . currencyName()
+            : '成功兑换会员时长' . $result['exchangeCount'] . ($result['exchangeType'] === 3 ? '个月' : '天');
+        return json(array_merge(['code' => 200, 'message' => $message], $result));
+    }
+
+    public function exchangeCode()
+    {
+        return $this->redeemExchangeCode([4]);
+    }
 
     public function crontab()
     {
@@ -1194,7 +991,7 @@ class Server extends BaseController
                         'action' => 1,
                         'count' => $count,
                         'recordInfo' => [
-                            'message' => '使用支付宝支付' . $count . '元充值' . $increase . 'R币' . ($rate!=1?'(其中包含限时优惠赠送' . ($increase-$count) . 'R币)':'')
+                            'message' => '使用支付宝支付' . $count . '元充值' . $increase . currencyName() . ($rate!=1?'(其中包含限时优惠赠送' . ($increase-$count) . currencyName() . ')':'')
                         ]
                     ]);
                     Db::commit();
@@ -1209,10 +1006,10 @@ class Server extends BaseController
                 // 事务外：通知与邮件
                 $user = (new UserModel())->where('id', $payRecord['userId'])->find();
                 $rCoin = sprintf("%.2f", $user->rCoin);
-                sendTGMessage($payRecord['userId'], '您已经成功充值了 <strong>' . $count . '</strong> 元，获得 <strong>' . $increase . '</strong> R币，当前余额为 <strong>' . $rCoin . '</strong>');
+                sendTGMessage($payRecord['userId'], '您已经成功充值了 <strong>' . $count . '</strong> 元，获得 <strong>' . $increase . '</strong> ' . currencyNameHtml() . '，当前余额为 <strong>' . $rCoin . '</strong>');
 
                 $money = $payRecord['money'];
-                $mediaMaturityTemplate = '您的账单已经支付成功，您购买的商品为：' . $commodity . '金额：¥ ' . $money . '感谢您的支持';
+                $mediaMaturityTemplate = '您的账单已经支付成功，您购买的商品为：' . currencyNameHtml() . '充值金额：¥ ' . $money . '感谢您的支持';
 
                 // 发送邮件
                 if ($user && $user['email']) {
@@ -1303,7 +1100,7 @@ class Server extends BaseController
                     'out_trade_no' => $tradeNo,
                     'notify_url' => Config::get('app.app_host') . '/media/server/resolvePayment?key=' . $payCompleteKey,
                     'return_url' => Config::get('app.app_host') . '/media/server/account',
-                    'name' => 'R币充值',
+                    'name' => currencyName() . '充值',
                     'money' => $data['money'],
                     'clientip' => $realIp,
                     'sign' => '',
@@ -1357,7 +1154,7 @@ class Server extends BaseController
                 'type' => 1,
                 'userId' => Session::get('r_user')->id,
                 'tradeNo' => $tradeNo,
-                'name' => 'R币充值',
+                'name' => currencyName() . '充值',
                 'money' => $data['money'],
                 'clientip' => $realIp,
                 'payRecordInfo' => json_encode([

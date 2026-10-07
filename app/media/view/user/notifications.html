@@ -250,7 +250,7 @@
                                         </div>
                                         <div class="max-w-[80%] md:max-w-[90%]">
                                             <h3 class="font-semibold">${notification.toNickName?notification.toNickName:toUserName}</h3>
-                                            <p class="text-white/60 mt-1 line-clamp-1">${notification.message}</p>
+                                            <p class="text-white/60 mt-1 line-clamp-1">${escapeHtmlText(notification.message)}</p>
                                             <span class="text-sm text-white-40 mt-2 block">${notification.createdAt}</span>
                                         </div>
                                     </div>
@@ -269,7 +269,7 @@
                                         </div>
                                         <div class="max-w-[80%] md:max-w-[90%]">
                                             <h3 class="font-semibold">${notification.fromNickName?notification.fromNickName:fromUserName}</h3>
-                                            <p class="text-white-60 mt-1 line-clamp-1">${notification.fromNickName?notification.fromNickName:fromUserName}: ${notification.message}</p>
+                                            <p class="text-white-60 mt-1 line-clamp-1">${notification.fromNickName?notification.fromNickName:fromUserName}: ${escapeHtmlText(notification.message)}</p>
                                             <span class="text-sm text-white-40 mt-2 block">${notification.createdAt}</span>
                                         </div>
                                     </div>

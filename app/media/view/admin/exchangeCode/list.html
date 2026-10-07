@@ -45,19 +45,19 @@
                         <td class="py-3 px-4">{$code.code}</td>
                         <td class="py-3 px-4">
                             {switch $code.exchangeType}
-                                {case 1}<span class="text-blue-400">激活账号</span>{/case}
-                                {case 2}<span class="text-green-400">续期 {$code.exchangeCount} 天</span>{/case}
-                                {case 3}<span class="text-green-400">续期 {$code.exchangeCount} 月</span>{/case}
-                                {case 4}<span class="text-yellow-400">充值 {$code.exchangeCount} R币</span>{/case}
+                                {case 1}<span class="text-blue-400">激活账号（1 天）</span>{/case}
+                                {case 2}<span class="text-green-400">会员（按天）</span>{/case}
+                                {case 3}<span class="text-green-400">会员（按月）</span>{/case}
+                                {case 4}<span class="text-yellow-400">余额</span>{/case}
                                 {default}未知类型{/default}
                             {/switch}
                         </td>
                         <td class="py-3 px-4">
                             {switch $code.exchangeType}
-                                {case 1}1次{/case}
-                                {case 2}{$code.exchangeCount}天{/case}
-                                {case 3}{$code.exchangeCount}月{/case}
-                                {case 4}{$code.exchangeCount}R币{/case}
+                                {case 1}1 天{/case}
+                                {case 2}{:number_format((float)$code['exchangeCount'], 0)} 天{/case}
+                                {case 3}{:number_format((float)$code['exchangeCount'], 0)} 月{/case}
+                                {case 4}{:number_format((float)$code['exchangeCount'], 2)} {:currencyNameHtml()}{/case}
                             {/switch}
                         </td>
                         <td class="py-3 px-4">
@@ -255,4 +255,4 @@ $(function() {
         window.location.href = "{:url('admin/exchangeCodeList')}?page=1&keyword=" + encodeURIComponent(keyword);
     });
 });
-</script> 
+</script>

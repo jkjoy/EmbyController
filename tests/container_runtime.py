@@ -1,6 +1,7 @@
 """Real Docker startup, browser access, persistence and shutdown checks before publication."""
 import base64
 import hashlib
+import html
 import http.cookiejar
 import json
 import socket
@@ -103,14 +104,39 @@ def main(image):
         assert status == 200 and b"layui" in body, "Static resource was not served"
         for path in ["/.env", "/data/emby-controller.sqlite", "/router.php"]:
             assert request(opener, origin, path)[0] in (403, 404), "Private path was exposed: " + path
+        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": "MISSING"})
+        assert status == 401 and json.loads(body)["code"] == 401, "Anonymous redemption must return JSON 401"
         status, body, final_url = request(opener, origin, "/media/user/login", {
             "username": "admin", "password": "A123456"
         })
         assert status == 200 and "/media/user/login" not in final_url, "Administrator login/session failed"
-        status, body, _ = request(opener, origin, "/media/admin/setting", {"siteName": "Direct Port Smoke"})
+        currency = '积分<&"'
+        status, body, _ = request(opener, origin, "/media/admin/setting", {
+            "siteName": "Direct Port Smoke", "currencyName": currency
+        })
         assert status == 200 and json.loads(body)["code"] == 200, "Admin setting did not persist"
+        for path in ["/media/finance/user", "/media/admin/addExchangeCode"]:
+            status, body, _ = request(opener, origin, path)
+            assert status == 200 and html.escape(currency).encode() in body, "Currency/template render failed: " + path
+        status, body, _ = request(opener, origin, "/media/server/redeemCode")
+        assert json.loads(body)["code"] == 405, "GET must not redeem a code"
+        status, body, _ = request(opener, origin, "/media/admin/addExchangeCode", {
+            "mode": "batch", "exchangeType": "4", "exchangeCount": "12.34", "generateCount": "2"
+        })
+        generated = json.loads(body)
+        assert status == 200 and generated["code"] == 200, "Balance codes were not generated"
+        codes = generated["data"]["codes"]
+        assert len(codes) == 2 and len(set(codes)) == 2, "Batch codes must be unique"
+        status, body, _ = request(opener, origin, "/media/admin/exchangeCodeList")
+        assert status == 200 and html.escape(currency).encode() in body, "Code list currency/template render failed"
+        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        redeemed = json.loads(body)
+        assert status == 200 and redeemed["code"] == 200 and redeemed["rCoin"] == "12.34", "Balance redemption failed"
+        assert currency in redeemed["message"], "Redemption must use the configured currency"
+        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        assert json.loads(body)["code"] == 400, "Code must only be redeemable once"
         assert websocket(port), "Same-port WebSocket upgrade failed"
-        print("PASS: real HTTP/static/admin/session and same-port WebSocket", flush=True)
+        print("PASS: real HTTP/static/admin/session, currency, generation/single-use redemption and same-port WebSocket", flush=True)
 
         docker("stop", "--time", "10", name)
         stopped = state(name)
@@ -118,6 +144,14 @@ def main(image):
         docker("rm", name)
         _, origin, opener = start()
         assert b"Direct Port Smoke" in request(opener, origin, "/media/user/login")[1], "Database setting lost after recreation"
+        request(opener, origin, "/media/user/login", {"username": "admin", "password": "A123456"})
+        status, body, _ = request(opener, origin, "/media/finance/user")
+        assert status == 200 and b"12.34" in body and html.escape(currency).encode() in body, "Currency/balance lost after recreation"
+        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        assert json.loads(body)["code"] == 400, "Used code status lost after recreation"
+        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[1]})
+        redeemed = json.loads(body)
+        assert redeemed["code"] == 200 and redeemed["rCoin"] == "24.68", "Unused code/balance lost after recreation"
 
         # Caddy failing must terminate the whole container instead of leaving background workers alive.
         docker("exec", name, "pkill", "-TERM", "-x", "caddy")

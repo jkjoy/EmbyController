@@ -1,10 +1,10 @@
-<h1 class="text-2xl font-bold mb-6">充值中心</h1>
+<h1 class="text-2xl font-bold mb-6">充值与兑换</h1>
 
 <!-- 充值说明 -->
 <div class="mb-8">
-    <p class="text-lg mb-2">RCoin购买价格：<span class="text-green-400">¥ 1 CNY => {$rate} RCoin</span>
+    <p class="text-lg mb-2">{:currencyNameHtml()}购买价格：<span class="text-green-400">¥ 1 CNY => {$rate} {:currencyNameHtml()}</span>
         {if $rate>1}
-        (其中包含赠送的{$rate-1}RCoin)
+        (其中包含赠送的{$rate-1}{:currencyNameHtml()})
         {/if}
     </p>
     <p class="text-sm text-gray-400">如遇到充值不到账情况，请前往账单记录进行查询，对存疑账单进行重新检测，如果确实付款但是系统无自动到账会自动给予补偿，如果出现问题请及时发送工单以及账单号，我们将第一时间为您处理</p>
@@ -13,26 +13,32 @@
 <!-- 账户余额 -->
 <div class="mb-8">
     <p class="text-lg mb-2">您的账户余额为</p>
-    <p class="text-4xl font-bold text-green-400 price-amount"><?php echo number_format($userFromDatabase->rCoin, 2); ?> RCoin</p>
+    <p class="text-4xl font-bold text-green-400 price-amount"><?php echo number_format($userFromDatabase->rCoin, 2); ?> {:currencyNameHtml()}</p>
 </div>
 
-<!-- 兑换码充值 -->
+<!-- 会员及余额兑换 -->
 <div class="glass-effect rounded-lg p-6 mb-6">
-    <h2 class="text-xl font-semibold mb-4">兑换码兑换余额</h2>
+    <h2 class="text-xl font-semibold mb-2">兑换码兑换</h2>
+    <p class="text-sm text-gray-400 mb-4">输入管理员发放的兑换码，兑换会员时长或{:currencyNameHtml()}。会员兑换需先在“影视站账号”中创建 Emby 账号；未到期会员会累加时长，已过期会员从当前时间开始计算。</p>
     <div class="flex gap-4">
         <input
                 type="text"
                 name="code"
+                maxlength="64"
+                autocomplete="off"
                 placeholder="请输入兑换码"
                 class="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:border-white/40"
         >
         <button
+                type="button"
+                id="redeem-code-button"
                 class="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
                 onclick="exchangeCode()"
         >
             兑换
         </button>
     </div>
+    <p id="redeem-code-result" class="text-sm text-green-400 mt-3" role="status" aria-live="polite"></p>
 </div>
 
 {if $epay['enable']}
@@ -133,34 +139,34 @@
     }
 
     function exchangeCode() {
-        $.each($('button'), function (index, item) {
-            $(item).attr('disabled', 'disabled');
-        });
-        startMainLoading();
-        var codeFromUser = $('input[name=code]').val();
+        const codeFromUser = $('input[name=code]').val().trim();
         if (codeFromUser === '') {
-            $.each($('button'), function (index, item) {
-                $(item).removeAttr('disabled');
-            });
-            stopMainLoading();
             rStatusMessage.error('请输入兑换码');
             return;
         }
-        $.post('/media/server/exchangeCode', {
+        const button = $('#redeem-code-button');
+        if (button.prop('disabled')) return;
+        button.prop('disabled', true).text('兑换中…');
+        $('#redeem-code-result').text('');
+        startMainLoading();
+        $.post('/media/server/redeemCode', {
             code: codeFromUser
         }, function (data) {
             if (data.code === 200) {
-                rStatusMessage.success(data.message);
+                rStatusMessage.success(escapeHtmlText(data.message));
                 $('input[name=code]').val('');
-                // 格式化为两位小数
-                data.rCoin = parseFloat(data.rCoin).toFixed(2);
-                $('.price-amount').text(data.rCoin + ' RCoin');
+                if (data.rCoin !== undefined) {
+                    const currency = {:json_encode(currencyName(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)};
+                    $('.price-amount').text(Number(data.rCoin).toFixed(2) + ' ' + currency);
+                }
+                $('#redeem-code-result').text(data.message + (data.activateTo ? '，会员到期时间：' + data.activateTo : ''));
             } else {
-                rStatusMessage.error(data.message);
+                rStatusMessage.error(escapeHtmlText(data.message || '兑换失败，请重新登录后再试'));
             }
-            $.each($('button'), function (index, item) {
-                $(item).removeAttr('disabled');
-            });
+        }, 'json').fail(function(response) {
+            rStatusMessage.error(escapeHtmlText(response.responseJSON?.message || '兑换请求失败，请检查网络后重试'));
+        }).always(function() {
+            button.prop('disabled', false).text('兑换');
             stopMainLoading();
         });
     }
@@ -183,7 +189,7 @@
                 method: paymentMethod
             }, function (data) {
                 if (data.code === 200) {
-                    rStatusMessage.success(data.message);
+                    rStatusMessage.success(escapeHtmlText(data.message));
                     if (data.qrcodeUrl) {
                         $('input[name=amount]').val('');
                         if (data.qrcodeUrl.indexOf('qr.alipay.com') !== -1 && data.method === 'alipay') {
@@ -208,7 +214,7 @@
                         }
                     }
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
                 $.each($('button'), function (index, item) {
                     $(item).removeAttr('disabled');

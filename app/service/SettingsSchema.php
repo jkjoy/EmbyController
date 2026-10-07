@@ -11,6 +11,7 @@ class SettingsSchema
             '站点与个性化' => [
                 'siteName' => ['网站标题', 'text', '算艺轩', 'APP_NAME', 'app.app_name', ['required' => true, 'maxLength' => 120]],
                 'siteSubtitle' => ['网站副标题', 'text', '影视管理站', 'APP_SUBTITLE', 'app.app_subtitle'],
+                'currencyName' => ['站内货币名称', 'text', 'R币', null, 'app.currency_name', ['required' => true, 'maxLength' => 20, 'help' => '例如 R币、积分或金币；用于余额、账单、签到和通知']],
                 'poweredBy' => ['技术支持 / 版权署名', 'text', 'RandallAnjie.com', 'POWERED_BY', 'app.powered_by'],
                 'siteDescription' => ['网站描述', 'text', '专业的影视管理平台', null, 'app.site_description'],
                 'siteKeywords' => ['网站关键词', 'text', '', null, 'app.site_keywords', ['help' => '多个关键词用逗号分隔']],

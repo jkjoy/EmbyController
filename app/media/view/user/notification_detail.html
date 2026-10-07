@@ -89,14 +89,14 @@ function createMessageElement(message, random = null) {
                 <img src="/api/common/getHeadImg?id=<?php echo $id; ?>&size=100" alt="对方头像" class="w-full h-full rounded-full" />
             </div>
             <div class="glass-effect rounded-lg rounded-tl-none p-4 max-w-[90%]">
-                <p class="text-white/90 break-all">${message.message}</p>
+                <p class="text-white/90 break-all">${escapeHtmlText(message.message)}</p>
                 <span class="text-sm text-white/40 mt-2 block">${message.createdAt}</span>
             </div>
         </div>
     ` : `
         <div class="flex items-end space-x-2">
             <div class="glass-effect rounded-lg rounded-tr-none p-4 max-w-[90%]">
-                <p class="text-white/90 break-all">${message.message}</p>
+                <p class="text-white/90 break-all">${escapeHtmlText(message.message)}</p>
                 <div class="flex items-center justify-end space-x-1 mt-1">
                     <span class="text-sm text-white/40">${message.createdAt}</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500 read-status ${message.readStatus == 0?'hidden':''}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>

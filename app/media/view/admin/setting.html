@@ -55,7 +55,7 @@
                        name="chargeRate"
                        value="{$settings.chargeRate|default=1}"
                        class="w-full bg-white/10 rounded-lg px-4 py-2">
-                <p class="text-sm text-gray-400">比率为1即为充值1元到账1R币</p>
+                <p class="text-sm text-gray-400">比率为1即为充值1元到账1{:currencyNameHtml()}</p>
             </div>
 
             <div class="space-y-2">
@@ -82,7 +82,7 @@
                            onchange="validateAmount(this)"
                            class="w-24 bg-white/10 rounded-lg px-4 py-2"
                            oninput="updateSignInRange()">
-                    <span class="text-gray-400">R币</span>
+                    <span class="text-gray-400">{:currencyNameHtml()}</span>
                 </div>
                 <div class="relative pt-4 w-full">
                     <div class="h-2 bg-gray-700 rounded-lg">
@@ -97,7 +97,7 @@
                              onmousedown="startDragging('max', event)"></div>
                     </div>
                 </div>
-                <p class="text-sm text-gray-400">设置每日签到可获得的R币范围，两个值都为0时关闭签到功能</p>
+                <p class="text-sm text-gray-400">设置每日签到可获得的{:currencyNameHtml()}范围，两个值都为0时关闭签到功能</p>
             </div>
         </div>
     </div>

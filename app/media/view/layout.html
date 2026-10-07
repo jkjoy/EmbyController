@@ -10,6 +10,14 @@
 	<link href="//cdn.staticfile.net/layui/2.9.13/css/layui.css" rel="stylesheet">
 	<script src="https://notification.randallanjie.com/r_notification.js"></script>
 	<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+	<script>
+		// 气泡和动态 HTML 中的后台配置、接口消息始终作为文字显示。
+		function escapeHtmlText(value) {
+			const element = document.createElement('span');
+			element.textContent = String(value ?? '');
+			return element.innerHTML;
+		}
+	</script>
 
 	<style>
 		.glass-effect {
@@ -176,8 +184,8 @@
 <div id="comment-dialog" class="dialog-overlay">
 	<div class="dialog-content glass-effect rounded-lg p-6">
 		<h3 class="text-xl font-semibold mb-4">写评价</h3>
-		<p class="text-red-400 text-sm">评价需要收费0.01R币以防止广告，评论每100字奖励0.01R币，禁止恶意刷评，一经发现将会封禁账号</p>
-		<p class="text-grey-400 text-sm">该功能测试期间：中长发布后待管理员审核后会给予1-5R币奖励</p>
+		<p class="text-red-400 text-sm">评价需要收费0.01{:currencyNameHtml()}以防止广告，评论每100字奖励0.01{:currencyNameHtml()}，禁止恶意刷评，一经发现将会封禁账号</p>
+		<p class="text-grey-400 text-sm">该功能测试期间：中长发布后待管理员审核后会给予1-5{:currencyNameHtml()}奖励</p>
 		<p class="text-grey-400 text-sm">该功能测试期间：遇见BUG同理，发送工单，核实后会给予补偿</p>
 		<p class="text-grey-400 text-sm">该功能测试期间：评价后暂时将无法修改，请谨慎操作</p>
 		<div class="space-y-4">

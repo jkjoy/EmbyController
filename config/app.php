@@ -33,6 +33,9 @@ return [
     // 网站名称：默认值，运行时会被后台设置（数据库 rc_config.siteName）覆盖，见 app\listener\InitSiteConfig
     'app_name' => '算艺轩',
 
+    // 站内货币名称，由后台数据库设置覆盖。
+    'currency_name' => 'R币',
+
     // 网站副标题/描述（原硬编码的"影视管理站"）：同样可被后台设置（rc_config.siteSubtitle）覆盖
     'app_subtitle' => '影视管理站',
 

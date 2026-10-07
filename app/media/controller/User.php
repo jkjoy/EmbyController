@@ -814,7 +814,7 @@ class User extends BaseController
                             'action' => 4,
                             'count' => $score,
                             'recordInfo' => [
-                                'message' => '签到获取' . $score . 'R币',
+                                'message' => '签到获取' . $score . currencyName(),
                             ]
                         ]);
                         Db::commit();
@@ -827,9 +827,9 @@ class User extends BaseController
                     $user = (new UserModel())->where('id', $userId)->find();
                     Session::set('r_user', $user);
 
-                    sendTGMessage($userId, "签到成功！今天签到获取" . $score . "R币");
+                    sendTGMessage($userId, "签到成功！今天签到获取" . $score . currencyNameHtml());
 
-                    return json(['code' => 200, 'message' => '签到成功！今天签到获取' . $score . 'R币']);
+                    return json(['code' => 200, 'message' => '签到成功！今天签到获取' . $score . currencyName()]);
                 } else {
                     return json(['code' => 400, 'message' => '签到失败，如果今天未签到请重新登录后重试']);
                 }
@@ -1137,7 +1137,7 @@ class User extends BaseController
                 } else if ($user->authority < 0) {
                     return json(['code' => 400, 'message' => '用户已被封禁']);
                 } else if ($user->rCoin < 0.01) {
-                    return json(['code' => 400, 'message' => 'R币不足']);
+                    return json(['code' => 400, 'message' => currencyName() . '不足']);
                 }
                 $data['comment'] .= ' ';
                 $pattern = '/@([a-zA-Z0-9_]+)/';
@@ -1179,7 +1179,7 @@ class User extends BaseController
                     'action' => 3,
                     'count' => 0.01,
                     'recordInfo' => [
-                        'message' => '影视评论消耗0.01R币',
+                        'message' => '影视评论消耗0.01' . currencyName(),
                     ]
                 ]);
                 $financeRecordModel = new FinanceRecordModel();
@@ -1188,7 +1188,7 @@ class User extends BaseController
                     'action' => 8,
                     'count' => $rCoin,
                     'recordInfo' => [
-                        'message' => '影视评论奖励' . $rCoin . 'R币',
+                        'message' => '影视评论奖励' . $rCoin . currencyName(),
                     ]
                 ]);
 

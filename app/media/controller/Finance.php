@@ -144,7 +144,7 @@ class Finance extends BaseController
                     'action' => 1,
                     'count' => $payRecord['money'],
                     'recordInfo' => [
-                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . 'R币 + ' . $payRecord['money'] . '赠送R币',
+                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . currencyName() . ' + ' . $payRecord['money'] . '赠送' . currencyName(),
                     ]
                 ]);
 
@@ -198,7 +198,7 @@ class Finance extends BaseController
                     'action' => 1,
                     'count' => $payRecord['money'],
                     'recordInfo' => [
-                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . 'R币 + ' . $payRecord['money'] . '赠送R币',
+                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . currencyName() . ' + ' . $payRecord['money'] . '赠送' . currencyName(),
                     ]
                 ]);
 

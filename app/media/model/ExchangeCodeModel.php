@@ -17,7 +17,7 @@ class ExchangeCodeModel extends Model
         'code' => 'varchar',
         'type' => 'int',  // 0未使用，1已使用，-1已禁用
         'exchangeType' => 'int',  // 可兑换类型（1激活，2按天续期，3按月续期，4充值余额）
-        'exchangeCount' => 'int',  // 兑换数量
+        'exchangeCount' => 'decimal',  // 会员时长为整数，余额支持两位小数
         'exchangeDate' => 'timestamp',
         'usedByUserId' => 'int',  // 被用户（ID）使用时间
         'codeInfo' => 'text',

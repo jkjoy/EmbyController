@@ -559,6 +559,19 @@ function siteConfigText($key, $default = '')
     return htmlspecialchars((string) config('app.' . $key, $default), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** 站内货币的原始名称，用于账单记录、JSON 和纯文本消息。 */
+function currencyName(): string
+{
+    $name = config('app.currency_name', 'R币');
+    return is_string($name) && trim($name) !== '' ? $name : 'R币';
+}
+
+/** 用于 HTML 文本、属性和 Telegram HTML 消息，只转义一次。 */
+function currencyNameHtml(): string
+{
+    return htmlspecialchars(currencyName(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
 /** 配置尚未就绪或传入非字符串时，拒绝 Webhook / 定时任务请求。 */
 function verifyCrontabKey($key): bool
 {
