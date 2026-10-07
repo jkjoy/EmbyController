@@ -26,11 +26,7 @@
                     onclick="toggleDropdown()"
                     class="flex items-center space-x-2"
             >
-                <?php
-                echo "<span>";
-                echo isset($user->nickName)?$user->nickName:$user->userName;
-                echo "</span>";
-                ?>
+                <span>{$user->nickName ?? $user->userName}</span>
                 <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center relative">
                     <?php
                     echo isset($user->id)?"<img src='/api/common/getHeadImg?id=" . $user->id . "&size=100' class='w-8 h-8 rounded-full'>":'<i class="text-white/60">?</i> ';
@@ -47,9 +43,7 @@
                     </div>
                     <div>
                         <div class="font-bold">
-                            <?php
-                            echo isset($user->nickName)?$user->nickName:$user->userName;
-                            ?>
+                            {$user->nickName ?? $user->userName}
                         </div>
                         <div class="text-sm text-white/60">
                             <?php

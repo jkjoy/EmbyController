@@ -288,34 +288,147 @@ class User extends BaseController
 
     public function update()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/media/user/login');
-        }
-        // 处理POST请求
-        if (Request::isPost()) {
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用POST请求'], 405);
+        $passwordChanged = false;
+        $verifyKey = null;
+        try {
+            $this->profileUser();
             $data = Request::post();
-            $userModel = new UserModel();
-            $validate = new UpdateValidate();
-            if (!$validate->scene('update')->check(['id' => Session::get('r_user')->id, 'username' => $data['username'], 'email' => $data['email'], 'password' => $data['password']])) {
-                return json(['code' => 400, 'message' => $validate->getError()]);
+            $this->checkProfileToken($data['profileToken'] ?? null);
+            $allowed = ['username', 'nickname', 'email', 'password', 'currentPassword', 'confirmPassword', 'verify', 'profileToken'];
+            if (array_diff(array_keys($data), $allowed)) throw new \DomainException('包含不允许修改的字段', 400);
+            foreach ($data as $value) {
+                if (!is_string($value)) throw new \DomainException('参数格式不正确', 400);
             }
-            $user = $userModel->where('id', Session::get('r_user')->id)->find();
-            if ($user->email != $data['email']) {
-                $code = Cache::get('verifyCode_update_' . $data['email']);
-                if ($code != $data['verify']) {
-                    return json(['code' => 400, 'message' => '邮箱验证码错误']);
+
+            $user = Db::transaction(function () use ($data, &$passwordChanged, &$verifyKey) {
+                // 重新锁定当前登录用户，不通过管理员/找回密码共用的更新方法写入。
+                $user = $this->profileUser(true);
+                $changes = [];
+                $validation = [];
+                foreach (['username' => 'userName', 'nickname' => 'nickName'] as $field => $column) {
+                    // 空昵称在页面显示登录名，原样提交这个显示值无需改写历史空昵称。
+                    if ($field === 'nickname' && empty($user[$column]) && ($data[$field] ?? null) === $user->userName) continue;
+                    if (isset($data[$field]) && $data[$field] !== $user[$column]) {
+                        $validation[$field] = $data[$field];
+                        $changes[$column] = $data[$field];
+                    }
                 }
-            }
-            $results = $userModel->updateUser(Session::get('r_user')->id, $data);
-            if ($results['user']) {
-                Session::set('r_user', $results['user']);
-                return json(['code' => 200, 'message' => '更新成功']);
-            } else {
-                return json(['code' => 400, 'message' => '更新失败：' . $results['error']]);
-            }
+                $email = strtolower(trim($data['email'] ?? ''));
+                $emailChanged = $email !== '' && $email !== strtolower(trim((string) $user->email));
+                if ($emailChanged) {
+                    $validation['email'] = $email;
+                    $changes['email'] = $email;
+                }
+                $password = $data['password'] ?? '';
+                if ($password !== '') {
+                    $validation['password'] = $password;
+                    if (!isset($data['confirmPassword']) || !hash_equals($password, $data['confirmPassword'])) {
+                        throw new \DomainException('两次输入的新密码不一致', 400);
+                    }
+                }
+                $validate = new UpdateValidate();
+                if ($validation && !$validate->only(array_keys($validation))->check($validation)) {
+                    throw new \DomainException($validate->getError(), 400);
+                }
+                $passwordChanged = $password !== '' && !password_verify($password, $user->password);
+                if ($emailChanged || $passwordChanged) $this->checkCurrentPassword($user, $data['currentPassword'] ?? null);
+                if (isset($changes['userName']) && Db::name('user')->where('id', '<>', $user->id)
+                    ->where('userName', $changes['userName'])->lock(true)->find()) {
+                    throw new \DomainException('用户名已存在', 400);
+                }
+                if ($emailChanged) {
+                    $this->checkAvailableEmail($email, (int) $user->id, true);
+                    if (Config::get('mailer.enable')) {
+                        $verifyKey = $this->profileVerifyKey((int) $user->id, $email);
+                        $saved = Cache::get($verifyKey);
+                        $verify = $data['verify'] ?? '';
+                        if (preg_match('/\A[0-9]{6}\z/', $verify) !== 1 || !is_string($saved)
+                            || preg_match('/\A[0-9]{6}\z/', $saved) !== 1 || !hash_equals($saved, $verify)) {
+                            throw new \DomainException('邮箱验证码错误或已过期', 400);
+                        }
+                    }
+                }
+                if ($passwordChanged) $changes['password'] = password_hash($password, PASSWORD_DEFAULT);
+                if ($changes) $user->save($changes);
+                return $user;
+            });
+        } catch (\DomainException $e) {
+            $code = $e->getCode() ?: 400;
+            return json(['code' => $code, 'message' => $e->getMessage()], in_array($code, [401, 403], true) ? $code : 200);
+        } catch (\Throwable $e) {
+            trace('更新用户资料失败', 'error');
+            return json(['code' => 400, 'message' => '更新失败，请稍后重试']);
         }
+
+        // 成功提交后才消费验证码，Session 中保留完整哈希供会话失效检查。
+        try {
+            if ($passwordChanged) $this->clearProfileSession();
+            else Session::set('r_user', $user);
+            if ($verifyKey !== null) Cache::delete($verifyKey);
+        } catch (\Throwable $e) {
+            trace('用户资料已更新，但验证码或会话清理失败', 'warning');
+        }
+        return json(['code' => 200, 'message' => $passwordChanged ? '密码已修改，请重新登录' : '更新成功',
+            'requireLogin' => $passwordChanged, 'redirectUrl' => $passwordChanged ? '/media/user/login' : null]);
+    }
+
+    private function profileUser(bool $lock = false): UserModel
+    {
+        $sessionUser = Session::get('r_user');
+        $id = (is_array($sessionUser) || $sessionUser instanceof \ArrayAccess)
+            ? (int) ($sessionUser['id'] ?? 0) : (int) ($sessionUser->id ?? 0);
+        if ($id <= 0) throw new \DomainException('请先登录', 401);
+        $user = (new UserModel())->where('id', $id)->lock($lock)->find();
+        if (!$user) {
+            $this->clearProfileSession();
+            throw new \DomainException('请重新登录', 401);
+        }
+        if ($user->authority < 0) {
+            $this->clearProfileSession();
+            throw new \DomainException('账号已禁用', 403);
+        }
+        $wskey = Session::get('wskey');
+        if ($wskey !== null && (!is_string($wskey) || !hash_equals(md5($user->id . $user->password), $wskey))) {
+            $this->clearProfileSession();
+            throw new \DomainException('登录已失效，请重新登录', 401);
+        }
+        return $user;
+    }
+
+    private function checkProfileToken($value): void
+    {
+        $saved = Session::get('profileToken');
+        if (!is_string($saved) || preg_match('/\A[a-f0-9]{64}\z/', $saved) !== 1 || !is_string($value)
+            || !hash_equals($saved, $value)) {
+            throw new \DomainException('页面已失效，请刷新后重试', 403);
+        }
+    }
+
+    private function checkCurrentPassword(UserModel $user, $value): void
+    {
+        if (!is_string($value) || $value === '' || strlen($value) > 40 || !password_verify($value, $user->password)) {
+            throw new \DomainException('当前密码不正确', 400);
+        }
+    }
+
+    private function checkAvailableEmail(string $email, int $userId, bool $lock = false): void
+    {
+        if (strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new \DomainException('邮箱格式不正确或长度超过254个字符', 400);
+        }
+        if (Db::name('user')->where('id', '<>', $userId)->whereRaw('LOWER(email) = :profile_email', ['profile_email' => $email])
+            ->lock($lock)->find()) throw new \DomainException('该邮箱已被注册', 400);
+    }
+
+    private function profileVerifyKey(int $userId, string $email): string
+    {
+        return 'verifyCode_update_' . $userId . '_' . $email;
+    }
+
+    private function clearProfileSession(): void
+    {
+        foreach (['r_user', 'wskey', 'm_embyId', 'profileToken'] as $key) Session::delete($key);
     }
 
     public function forgot()
@@ -402,7 +515,7 @@ class User extends BaseController
                     }
 
                     $validate = new UpdateValidate();
-                    if (!$validate->scene('update')->check([
+                    if (!$validate->scene('reset')->check([
                         'id' => $user->id,
                         'username' => null,
                         'email' => $data['email'],
@@ -449,18 +562,14 @@ class User extends BaseController
 
     public function userconfig()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
+        try {
+            $user = $this->profileUser();
+        } catch (\DomainException $e) {
             return redirect('/media/user/login');
         }
-        $userModel = new UserModel();
-        $user = $userModel->where('id', Session::get('r_user')->id)->find();
-        if(!$user){
-            return redirect('/media/user/login');
-        } else {
-            $user->password = '';
-        }
+        // 仅渲染副本隐藏哈希，不修改Session里用于识别旧登录状态的用户数据。
+        $user->password = '';
+        View::assign('user', $user);
         $userInfoArray = json_decode(json_encode($user['userInfo']), true);
         if (isset($userInfoArray['banEmail']) && ($userInfoArray['banEmail'] == 1 || $userInfoArray['banEmail'] == "1")) {
             View::assign('emailNotification', false);
@@ -505,6 +614,12 @@ class User extends BaseController
                 View::assign('tgUser', null);
             }
         }
+        $profileToken = Session::get('profileToken');
+        if (!is_string($profileToken) || preg_match('/\A[a-f0-9]{64}\z/', $profileToken) !== 1) {
+            $profileToken = bin2hex(random_bytes(32));
+            Session::set('profileToken', $profileToken);
+        }
+        View::assign('profileToken', $profileToken);
         View::assign('enableEmail', Config::get('mailer.enable'));
         return view();
     }
@@ -684,58 +799,63 @@ class User extends BaseController
 
     public function sendVerifyCode()
     {
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用POST请求'], 405);
         $data = Request::post();
-        $email = $data['email'];
-        $action = $data['action'];
-        // 判断邮箱是否合法
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return json(['code' => 400, 'message' => '邮箱格式不正确']);
+        $cached = false;
+        $cacheKey = null;
+        try {
+            $action = $data['action'] ?? null;
+            $email = $data['email'] ?? null;
+            if ($action === 'update') {
+                $user = $this->profileUser();
+                $this->checkProfileToken($data['profileToken'] ?? null);
+                $this->checkCurrentPassword($user, $data['currentPassword'] ?? null);
+                if (!Config::get('mailer.enable')) throw new \DomainException('邮件验证尚未启用，请直接使用当前密码修改邮箱', 400);
+                if (!is_string($email)) throw new \DomainException('邮箱格式不正确', 400);
+                $email = strtolower(trim($email));
+                $this->checkAvailableEmail($email, (int) $user->id);
+                if ($email === strtolower(trim((string) $user->email))) throw new \DomainException('邮箱未发生变化', 400);
+                $cacheKey = $this->profileVerifyKey((int) $user->id, $email);
+            } elseif ($action === 'register') {
+                // 注册验证码保持原邮箱键，兼容原注册表单与校验逻辑。
+                if (!is_string($email) || strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                    throw new \DomainException('邮箱格式不正确', 400);
+                }
+                $registerCount = (new SysConfigModel())->where('key', 'avableRegisterCount')->value('value', 0);
+                if ($registerCount <= 0 && $registerCount != -1) throw new \DomainException('注册功能已关闭', 400);
+                $cacheKey = 'verifyCode_register_' . $email;
+            } else {
+                throw new \DomainException('验证码用途不正确', 400);
+            }
+            if (Cache::get($cacheKey) !== null) throw new \DomainException('验证码未过期，请勿重复发送', 400);
+            $code = (string) random_int(100000, 999999);
+            $cached = true;
+            if (Cache::set($cacheKey, $code, 300) === false) throw new \RuntimeException('验证码缓存不可用');
+            $template = (new SysConfigModel())->where('key', 'verifyCodeTemplate')->value('value') ?? '您的验证码是：{Code}';
+            $template = str_replace(['{Code}', '{Email}', '{SiteUrl}'], [$code,
+                htmlspecialchars($email, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                htmlspecialchars((string) Config::get('app.app_host') . '/media', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')], $template);
+            try {
+                $queued = \think\facade\Queue::push('app\api\job\SendMailMessage', [
+                    'to' => $email, 'subject' => '【' . $code . '】' . Config::get('app.app_name') . '验证码',
+                    'content' => $template, 'isHtml' => true,
+                ], 'main');
+                // Sync 返回0；仅严格false表示队列拒绝了任务。
+                if ($queued === false) throw new \RuntimeException('队列拒绝任务');
+            } catch (\Throwable $e) {
+                throw new \RuntimeException('验证码发送失败');
+            }
+            return json(['code' => 200, 'message' => '验证码已尝试发送']);
+        } catch (\DomainException $e) {
+            $code = $e->getCode() ?: 400;
+            return json(['code' => $code, 'message' => $e->getMessage()], in_array($code, [401, 403], true) ? $code : 200);
+        } catch (\Throwable $e) {
+            if ($cached) {
+                try { Cache::delete($cacheKey); } catch (\Throwable $cleanupError) {}
+            }
+            trace('验证码发送失败', 'error');
+            return json(['code' => 400, 'message' => '验证码发送失败，请稍后重试']);
         }
-
-        $sysConfigModel = new SysConfigModel();
-        $avableRegisterCount = $sysConfigModel->where('key', 'avableRegisterCount')->find();
-        if ($avableRegisterCount) {
-            $avableRegisterCount = $avableRegisterCount['value'];
-        } else {
-            $avableRegisterCount = 0;
-        }
-
-        if ($action == 'register' && $avableRegisterCount <= 0 && $avableRegisterCount != -1) {
-            return json(['code' => 400, 'message' => '注册功能已关闭']);
-        }
-
-        $code = rand(100000, 999999);
-        $cacheKey = 'verifyCode_' . $action . '_' . $email;
-        if (Cache::get($cacheKey)) {
-            return json(['code' => 400, 'message' => '验证码未过期，请勿重复发送']);
-        }
-        Cache::set($cacheKey, $code, 300);
-
-        $SiteUrl = Config::get('app.app_host').'/media';
-
-        $sysConfigModel = new SysConfigModel();
-        $verifyCodeTemplate = $sysConfigModel->where('key', 'verifyCodeTemplate')->find();
-
-        if ($verifyCodeTemplate) {
-            $verifyCodeTemplate = $verifyCodeTemplate['value'];
-        } else {
-            $verifyCodeTemplate = '您的验证码是：{Code}';
-        }
-
-        $verifyCodeTemplate = str_replace('{Code}', $code, $verifyCodeTemplate);
-        $verifyCodeTemplate = str_replace('{Email}', $email, $verifyCodeTemplate);
-        $verifyCodeTemplate = str_replace('{SiteUrl}', $SiteUrl, $verifyCodeTemplate);
-
-//        sendEmailForce($email, '【' . $code . '】' . Config::get('app.app_name') . '验证码', $verifyCodeTemplate);
-
-        \think\facade\Queue::push('app\api\job\SendMailMessage', [
-            'to' => $email,
-            'subject' => '【' . $code . '】' . Config::get('app.app_name') . '验证码',
-            'content' => $verifyCodeTemplate,
-            'isHtml' => true
-        ], 'main');
-
-        return json(['code' => 200, 'message' => '验证码已尝试发送']);
     }
 
     public function sign()

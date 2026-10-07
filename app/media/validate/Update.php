@@ -7,49 +7,36 @@ use think\Validate;
 class Update extends Validate
 {
     protected $rule = [
-        'id'       => 'require|number',
-        'userName' => 'alphaNum|unique:user|length:4,20',
-        'nickName' => 'length:2,20',
-        'password' => 'checkPassword|checkLength:6,20',
-        'email'    => 'email|unique:user',
+        'username' => 'require|checkUsername',
+        'nickname' => 'require|length:2,20',
+        'password' => 'require|checkPassword',
+        'email' => 'require|email|max:254',
     ];
 
     protected $message = [
-        'id.require' => '用户ID不能为空',
-        'id.number' => '用户ID必须是数字',
-        'userName.alphaNum' => '用户名只能是字母和数字',
-        'userName.unique' => '用户名已存在',
-        'userName.length' => '用户名长度必须在4-20个字符之间',
-        'nickName.length' => '昵称长度必须在2-20个字符之间',
+        'username.require' => '用户名不能为空',
+        'username.checkUsername' => '用户名必须为3至40位字母、数字、下划线或破折号',
+        'nickname.require' => '昵称不能为空',
+        'nickname.length' => '昵称长度必须在2至20个字符之间',
         'password.require' => '密码不能为空',
-        'password.checkPassword' => '密码只能是字母、数字、下划线和破折号',
-        'password.checkLength' => '密码长度必须在6到40个字符之间',
+        'password.checkPassword' => '密码必须为6至40位字母、数字、点、下划线或破折号',
+        'email.require' => '邮箱不能为空',
         'email.email' => '邮箱格式不正确',
-        'email.unique' => '该邮箱已被注册',
+        'email.max' => '邮箱不能超过254个字符',
     ];
+
+    protected $scene = [
+        'update' => ['username', 'nickname', 'password', 'email'],
+        'reset' => ['email', 'password'],
+    ];
+
+    protected function checkUsername($value, $rule, $data = [])
+    {
+        return is_string($value) && preg_match('/\A[A-Za-z0-9_-]{3,40}\z/', $value) === 1;
+    }
 
     protected function checkPassword($value, $rule, $data = [])
     {
-
-        // 如果是字母、数字、下划线和破折号，返回true
-        if (preg_match('/^[A-Za-z0-9._-]+$/', $value)) {
-            return true;
-        }
-
-        // 否则，返回false
-        return false;
-    }
-
-    // 长度检查
-    protected function checkLength($value, $rule, $data = [])
-    {
-        $length = explode(',', $rule);
-        $min = $length[0];
-        $max = $length[1];
-        $len = strlen($value);
-        if ($len >= $min && $len <= $max) {
-            return true;
-        }
-        return false;
+        return is_string($value) && preg_match('/\A[A-Za-z0-9._-]{6,40}\z/', $value) === 1;
     }
 }

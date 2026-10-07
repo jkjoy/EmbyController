@@ -50,14 +50,14 @@
 
 <!-- 欢迎信息 -->
 <div class="space-y-2 mb-4">
-    <p class="text-xl">您好，<?php echo isset($user->nickName)?$user->nickName:$user->userName ?></p>
+    <p class="text-xl">您好，{$user->nickName ?? $user->userName}</p>
     <p>欢迎登陆{:siteConfigText('app_name')}{:siteConfigText('app_subtitle')}</p>
 </div>
 
 <!-- 浏览器信息 -->
 <div class="space-y-2 mb-4">
     <p>您使用的浏览器是：</p>
-    <p class="text-gray-400"><?php echo $_SERVER['HTTP_USER_AGENT']; ?></p>
+    <p class="text-gray-400"><?php echo htmlspecialchars($_SERVER['HTTP_USER_AGENT'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></p>
 </div>
 
 
@@ -80,36 +80,54 @@
 <!-- 账号信息 -->
 <div class="space-y-4 mb-4">
     <h2 class="text-xl font-semibold">您的{:siteConfigText('app_name')}账号</h2>
-    <form id="profileForm" class="space-y-4">
+    <form id="profileForm" class="space-y-4" novalidate>
+        <input type="hidden" name="profileToken" id="profileToken" value="{$profileToken}">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-gray-400 mb-1">登录名</label>
-                <input type="text" id="username" name="username" value="{$user->userName}" class="w-full bg-white/10 rounded-lg px-4 py-2"  />
+                <input type="text" id="username" name="username" value="{$user->userName}" autocomplete="username" class="w-full bg-white/10 rounded-lg px-4 py-2" />
             </div>
             <div>
                 <label class="block text-gray-400 mb-1">昵称</label>
-                <input type="text" id="nickname" name="nickname" value="<?php echo isset($user->nickName)?$user->nickName:$user->userName ?>" class="w-full bg-white/10 rounded-lg px-4 py-2" />
+                <input type="text" id="nickname" name="nickname" value="{$user->nickName ?? $user->userName}" class="w-full bg-white/10 rounded-lg px-4 py-2" />
             </div>
             <div>
-                <label class="block text-gray-400 mb-1">密码</label>
-                <input type="password" id="password" name="password" placeholder="为空表示不修改密码" class="w-full bg-white/10 rounded-lg px-4 py-2" />
+                <label for="currentPassword" class="block text-gray-400 mb-1">当前密码</label>
+                <input type="password" id="currentPassword" name="currentPassword" autocomplete="current-password" placeholder="修改邮箱或密码时填写" class="w-full bg-white/10 rounded-lg px-4 py-2" />
+                <p class="text-sm text-gray-400 mt-2">只修改登录名或昵称无需填写当前密码</p>
+            </div>
+            <div>
+                <label for="password" class="block text-gray-400 mb-1">新密码</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" minlength="6" maxlength="40" pattern="[A-Za-z0-9._\-]{6,40}" placeholder="留空表示不修改密码" class="w-full bg-white/10 rounded-lg px-4 py-2" />
+                <p class="text-sm text-gray-400 mt-2">6–40 位，支持字母、数字、点、下划线和破折号</p>
+            </div>
+            <div>
+                <label for="confirmPassword" class="block text-gray-400 mb-1">确认新密码</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" minlength="6" maxlength="40" placeholder="再次输入新密码" class="w-full bg-white/10 rounded-lg px-4 py-2" />
             </div>
             <div class="space-y-2">
                 <label class="block text-gray-400 mb-1">邮箱</label>
                 <div class="flex gap-2">
-                    <input type="email" id="email" name="email" value="{$user->email}" class="flex-1 bg-white/10 rounded-lg px-4 py-2" {if condition="!$enableEmail"}disabled{/if} />
+                    <input type="email" id="email" name="email" value="{$user->email}" autocomplete="email" maxlength="254" class="min-w-0 flex-1 bg-white/10 rounded-lg px-4 py-2" />
+                    {if condition="$enableEmail"}
                     <button
                             type="button"
                             id="sendVerifyCode"
                             class="px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled
                     >
-                        {if condition="$enableEmail"}发送验证码{else}无法修改邮箱{/if}
+                        发送验证码
                     </button>
+                    {/if}
                 </div>
+                {if condition="$enableEmail"}
                 <div id="verifyCodeInput" class="hidden">
-                    <input type="text" id="verify" name="verify" placeholder="请输入验证码" class="w-full bg-white/10 rounded-lg px-4 py-2 mt-2"/>
+                    <input type="text" id="verify" name="verify" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="请输入新邮箱收到的验证码" class="w-full bg-white/10 rounded-lg px-4 py-2 mt-2" />
                 </div>
+                <p class="text-sm text-gray-400">修改邮箱时，先填写当前密码，再向新邮箱发送验证码</p>
+                {else/}
+                <p class="text-sm text-gray-400">邮件服务未启用，填写当前密码后可直接修改邮箱</p>
+                {/if}
             </div>
             {if condition="$enableEmail"}
             <div>
@@ -125,13 +143,15 @@
     <!-- 保存按钮 -->
     <div class="flex justify-end">
         <button
-                type="button"
-                onclick="saveProfile()"
-                class="px-6 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30"
+                type="submit"
+                form="profileForm"
+                id="save-profile-button"
+                class="px-6 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
         >
             保存更改
         </button>
     </div>
+    <p id="profile-status" role="status" aria-live="polite" class="text-sm text-gray-400"></p>
 </div>
 
 {if $enableTelegram}
@@ -192,82 +212,210 @@
 
 <script>
 
-    let originalEmail = document.getElementById('email').value;
+    const profileForm = document.getElementById('profileForm');
+    const profileSaveBtn = document.getElementById('save-profile-button');
+    const profileStatusNode = document.getElementById('profile-status');
     const emailInput = document.getElementById('email');
+    const currentPasswordInput = document.getElementById('currentPassword');
+    const passwordInput = document.getElementById('password');
+    const confirmPasswordInput = document.getElementById('confirmPassword');
+    const profileTokenInput = document.getElementById('profileToken');
     const sendVerifyCodeBtn = document.getElementById('sendVerifyCode');
     const verifyCodeInput = document.getElementById('verifyCodeInput');
-    let countdown = 60;
+    const verificationInput = document.getElementById('verify');
+    const profileMailerEnabled = {:json_encode((bool)$enableEmail)};
+    const originalEmail = normalizeProfileEmail(emailInput.value);
+    const originalUsername = document.getElementById('username').value;
+    const originalNickname = document.getElementById('nickname').value;
+    let profileSaving = false;
+    let verificationSending = false;
+    let emailRevision = 0;
+    let countdown = 0;
     let timer = null;
 
-    // 验证邮箱格式
-    function validateEmail(email) {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    function normalizeProfileEmail(email) {
+        return email.trim().toLowerCase();
     }
 
-    // 邮箱输入监听
-    emailInput.addEventListener('input', function() {
-        const newEmail = this.value;
-        const isValidEmail = validateEmail(newEmail);
-        sendVerifyCodeBtn.disabled = !(isValidEmail && newEmail !== originalEmail);
-    });
+    function profileEmailChanged() {
+        return normalizeProfileEmail(emailInput.value) !== originalEmail;
+    }
 
-    // 发送验证码
-    sendVerifyCodeBtn.addEventListener('click', function() {
-        if (validateEmail(emailInput.value)) {
-            startCountdown();
-            verifyCodeInput.classList.remove('hidden');
-            var data = {
-                email: $('input[name="email"]').val(),
-                action: 'update'
-            };
-            $.post('/media/user/sendVerifyCode', data, function (res) {
-                if(res.code == 200){
-                    rStatusMessage.success('验证码发送成功');
-                }else{
-                    rStatusMessage.error('验证码发送失败：' + res.message);
-                }
-            });
+    function validateEmail(email) {
+        return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function setProfileStatus(message, isError = false) {
+        profileStatusNode.textContent = String(message ?? '');
+        profileStatusNode.classList.toggle('text-red-400', isError);
+        profileStatusNode.classList.toggle('text-gray-400', !isError);
+    }
+
+    function showProfileError(message, input = null) {
+        setProfileStatus(message, true);
+        rStatusMessage.error(escapeHtmlText(message));
+        if (input) input.focus();
+    }
+
+    function refreshProfileControls() {
+        currentPasswordInput.required = profileEmailChanged() || passwordInput.value !== '';
+        confirmPasswordInput.required = passwordInput.value !== '';
+        if (sendVerifyCodeBtn) {
+            sendVerifyCodeBtn.disabled = profileSaving || verificationSending || countdown > 0
+                || !profileEmailChanged() || !validateEmail(emailInput.value.trim()) || currentPasswordInput.value === '';
+            sendVerifyCodeBtn.textContent = verificationSending ? '发送中...'
+                : (countdown > 0 ? `${countdown}秒后重试` : '发送验证码');
         }
+    }
+
+    emailInput.addEventListener('input', function() {
+        emailRevision++;
+        if (verificationInput) verificationInput.value = '';
+        if (verifyCodeInput) verifyCodeInput.classList.add('hidden');
+        setProfileStatus('');
+        refreshProfileControls();
     });
+    currentPasswordInput.addEventListener('input', refreshProfileControls);
+    passwordInput.addEventListener('input', refreshProfileControls);
 
-    // 倒计时功能
     function startCountdown() {
-        sendVerifyCodeBtn.disabled = true;
+        if (timer !== null) clearInterval(timer);
         countdown = 60;
-
+        refreshProfileControls();
         timer = setInterval(() => {
             countdown--;
-            sendVerifyCodeBtn.textContent = `${countdown}秒后重试`;
-
             if (countdown <= 0) {
                 clearInterval(timer);
-                sendVerifyCodeBtn.disabled = false;
-                sendVerifyCodeBtn.textContent = '发送验证码';
+                timer = null;
+                countdown = 0;
             }
+            refreshProfileControls();
         }, 1000);
     }
 
-    // 保存个人信息
-    function saveProfile() {
-        const formData = {
-            username: document.getElementById('username').value,
-            nickname: document.getElementById('nickname').value,
-            password: document.getElementById('password').value,
-            email: document.getElementById('email').value,
-            verify: document.getElementById('verify').value,
-            {if condition="$enableEmail"}
-            'email-notificiation': document.getElementById('email-notificiation').checked,
-            {/if}
-        };
-        $.post('/media/user/update', formData, function (res) {
-            if(res.code == 200){
-                rStatusMessage.success('更新成功');
-                location.reload();
-            }else{
-                rStatusMessage.error(res.message);
+    if (sendVerifyCodeBtn) {
+        sendVerifyCodeBtn.addEventListener('click', function() {
+            if (verificationSending || profileSaving || countdown > 0) return;
+            const targetEmail = emailInput.value.trim();
+            if (!profileEmailChanged() || !validateEmail(targetEmail)) {
+                showProfileError('请输入有效的新邮箱地址', emailInput);
+                return;
             }
+            if (currentPasswordInput.value === '') {
+                showProfileError('发送验证码前请填写当前密码', currentPasswordInput);
+                return;
+            }
+            const requestRevision = emailRevision;
+            verificationSending = true;
+            refreshProfileControls();
+            setProfileStatus('正在发送验证码...');
+            $.post('/media/user/sendVerifyCode', {
+                action: 'update',
+                email: targetEmail,
+                currentPassword: currentPasswordInput.value,
+                profileToken: profileTokenInput.value
+            }, function(res) {
+                if (res.code === 200) {
+                    startCountdown();
+                    if (requestRevision === emailRevision && normalizeProfileEmail(targetEmail) === normalizeProfileEmail(emailInput.value)) {
+                        verifyCodeInput.classList.remove('hidden');
+                        verificationInput.focus();
+                        setProfileStatus('验证码已发送，请填写新邮箱收到的验证码');
+                        rStatusMessage.success('验证码发送成功');
+                    } else {
+                        setProfileStatus('验证码已发送至之前填写的邮箱；请等待倒计时结束后向当前邮箱重新发送');
+                    }
+                } else {
+                    showProfileError('验证码发送失败：' + (res.message || '请稍后重试'));
+                }
+            }, 'json').fail(function(response) {
+                showProfileError(response.responseJSON?.message || '验证码发送失败，请检查网络后重试');
+            }).always(function() {
+                verificationSending = false;
+                refreshProfileControls();
+            });
         });
     }
+
+    profileForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        saveProfile();
+    });
+
+    function saveProfile() {
+        if (profileSaving) return;
+        const usernameInput = document.getElementById('username');
+        const nicknameInput = document.getElementById('nickname');
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+        const currentPassword = currentPasswordInput.value;
+        const emailChanged = profileEmailChanged();
+        if (usernameInput.value !== originalUsername && !/^[A-Za-z0-9_-]{3,40}$/.test(usernameInput.value)) {
+            showProfileError('登录名需为 3–40 位字母、数字、下划线或破折号', usernameInput);
+            return;
+        }
+        if (nicknameInput.value !== originalNickname && (Array.from(nicknameInput.value).length < 2 || Array.from(nicknameInput.value).length > 20)) {
+            showProfileError('昵称长度需为 2–20 个字符', nicknameInput);
+            return;
+        }
+        if (emailChanged && !validateEmail(email)) {
+            showProfileError('请输入有效的邮箱地址，最长 254 个字符', emailInput);
+            return;
+        }
+        if ((emailChanged || password !== '') && currentPassword === '') {
+            showProfileError('修改邮箱或密码时请填写当前密码', currentPasswordInput);
+            return;
+        }
+        if (password !== '' && !/^[A-Za-z0-9._-]{6,40}$/.test(password)) {
+            showProfileError('新密码需为 6–40 位字母、数字、点、下划线或破折号', passwordInput);
+            return;
+        }
+        if (password !== confirmPassword) {
+            showProfileError('两次输入的新密码不一致', confirmPasswordInput);
+            return;
+        }
+        if (profileMailerEnabled && emailChanged && (!verificationInput || !/^\d{6}$/.test(verificationInput.value.trim()))) {
+            showProfileError('请填写新邮箱收到的 6 位数字验证码', verificationInput);
+            return;
+        }
+        const formData = {
+            username: usernameInput.value,
+            nickname: nicknameInput.value,
+            email: email,
+            password: password,
+            currentPassword: currentPassword,
+            confirmPassword: confirmPassword,
+            verify: verificationInput ? verificationInput.value.trim() : '',
+            profileToken: profileTokenInput.value
+        };
+        profileSaving = true;
+        profileSaveBtn.disabled = true;
+        profileSaveBtn.textContent = '保存中...';
+        refreshProfileControls();
+        setProfileStatus('正在保存个人信息...');
+        $.post('/media/user/update', formData, function(res) {
+            if (res.code === 200) {
+                setProfileStatus(res.message || '更新成功');
+                rStatusMessage.success(escapeHtmlText(res.message || '更新成功'));
+                if (res.requireLogin) {
+                    window.location.href = res.redirectUrl;
+                } else {
+                    location.reload();
+                }
+            } else {
+                showProfileError(res.message || '更新失败，请稍后重试');
+            }
+        }, 'json').fail(function(response) {
+            showProfileError(response.responseJSON?.message || '保存失败，请检查网络后重试');
+        }).always(function() {
+            profileSaving = false;
+            profileSaveBtn.disabled = false;
+            profileSaveBtn.textContent = '保存更改';
+            refreshProfileControls();
+        });
+    }
+    refreshProfileControls();
 
     // 解绑Telegram
     function unbindTelegram() {
@@ -276,7 +424,7 @@
                 rStatusMessage.success('解绑成功');
                 location.reload();
             }else{
-                rStatusMessage.error(res.message);
+                rStatusMessage.error(escapeHtmlText(res.message));
             }
         });
     }
@@ -296,7 +444,7 @@
                     $('<p>').text('如果你已经与机器人对话过，你也可以使用命令 /bind ' + res.data + ' 绑定Telegram账号')
                 );
             }else{
-                rStatusMessage.error(res.message);
+                rStatusMessage.error(escapeHtmlText(res.message));
             }
             $('#get-bind-code').removeAttr('disabled');
         });
@@ -308,12 +456,13 @@
             emailNotification: this.checked?1:0
         }, function (res) {
             if (res.code === 200) {
-                rStatusMessage.success(res.message);
+                rStatusMessage.success(escapeHtmlText(res.message));
             } else {
-                rStatusMessage.error(res.message);
+                rStatusMessage.error(escapeHtmlText(res.message));
             }
             $('input[name=email-notificiation]').removeAttr('disabled');
-        });    });
+        });
+    });
     {/if}
     {if $tgUser}
     document.getElementById('tg-notification').addEventListener('change', function() {
@@ -322,9 +471,9 @@
             tgNotification: this.checked?1:0
         }, function (res) {
             if (res.code === 200) {
-                rStatusMessage.success(res.message);
+                rStatusMessage.success(escapeHtmlText(res.message));
             } else {
-                rStatusMessage.error(res.message);
+                rStatusMessage.error(escapeHtmlText(res.message));
             }
             $('input[name=tg-notification]').removeAttr('disabled');
         });

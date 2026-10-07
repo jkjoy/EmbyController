@@ -17,25 +17,46 @@ class MediaAuth
 {
     public function handle($request, \Closure $next)
     {
+        $url = $request->url(true);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $isRedeemRequest = preg_match('~\A/media/server/redeemCode(?:\.html)?/?\z~i', $path) === 1;
+        $isProfileRequest = preg_match('~\A/media/user/update(?:\.html)?/?\z~i', $path) === 1
+            || (preg_match('~\A/media/user/sendVerifyCode(?:\.html)?/?\z~i', $path) === 1 && $request->post('action') === 'update');
+        $requiresJsonAuth = $isRedeemRequest || $isProfileRequest;
+        $authError = null;
         // 获取当前用户
         $user = Session::get('r_user');
         // 从数据库中获取用户信息
         if ($user) {
             $userModel = new \app\media\model\UserModel();
             $user = $userModel->where('id', $user['id'])->find();
-            // 更新 session 中的用户信息
-            Session::set('r_user', $user);
+            $wskey = Session::get('wskey');
+            if (!$user) {
+                $authError = ['code' => 401, 'message' => '请重新登录'];
+            } elseif ($user['authority'] < 0) {
+                $authError = ['code' => 403, 'message' => '账号已禁用'];
+            } elseif ($wskey !== null && (!is_string($wskey) || !hash_equals(md5($user->id . $user->password), $wskey))) {
+                // 先校验原会话凭据，再刷新用户，避免旧会话被新密码数据重新认证。
+                $authError = ['code' => 401, 'message' => '登录已失效，请重新登录'];
+            } else {
+                Session::set('r_user', $user);
+            }
+            if ($authError !== null) {
+                foreach (['r_user', 'wskey', 'm_embyId', 'profileToken'] as $key) Session::delete($key);
+                $user = null;
+            }
         }
         View::assign('user', $user);
-        // 获取当前请求的 URL 路径
-        $url = $request->url(true);
+        if ($authError !== null) {
+            if ($requiresJsonAuth) return json($authError, $authError['code']);
+            Session::set('jumpUrl', $url);
+            return redirect((string) url('/media/user/login'));
+        }
+        if (!$user && $requiresJsonAuth) return json(['code' => 401, 'message' => '请先登录'], 401);
 
         // url 去掉域名部分
         $url = str_replace('http://'.$_SERVER['HTTP_HOST'], '', $url);
         $url = str_replace('https://'.$_SERVER['HTTP_HOST'], '', $url);
-
-        $isRedeemRequest = preg_match('~\A/media/server/redeemCode(?:\.html)?/?\z~i',
-            (string) parse_url($url, PHP_URL_PATH)) === 1;
 
         if ($url == '/media' || $url == '/media/') {
             $url = '/media/index/index';
@@ -65,17 +86,6 @@ class MediaAuth
             }
         }
         if ((empty($user)) && !$flag) {
-            if ($isRedeemRequest) {
-                return json(['code' => 401, 'message' => '请先登录'], 401);
-            }
-            Session::set('jumpUrl', $request->url(true));
-            return redirect((string)url('/media/user/login'));
-        }
-        if (isset($user['authority']) && $user['authority'] < 0) {
-            Session::delete('r_user');
-            if ($isRedeemRequest) {
-                return json(['code' => 403, 'message' => '账号已禁用'], 403);
-            }
             Session::set('jumpUrl', $request->url(true));
             return redirect((string)url('/media/user/login'));
         }

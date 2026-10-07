@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import html
+from html.parser import HTMLParser
 import http.cookiejar
 import json
 import socket
@@ -66,6 +67,21 @@ def websocket(port):
             hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()
         )
         return headers.startswith(b"HTTP/1.1 101") and expected.lower() in headers.lower()
+
+
+def profile_token(body):
+    class Inputs(HTMLParser):
+        token = None
+
+        def handle_starttag(self, tag, attributes):
+            attributes = dict(attributes)
+            if tag == "input" and attributes.get("name") == "profileToken":
+                self.token = attributes.get("value")
+
+    inputs = Inputs()
+    inputs.feed(body.decode("utf-8"))
+    assert inputs.token, "Profile must include a form token"
+    return inputs.token
 
 
 def main(image):
@@ -138,13 +154,47 @@ def main(image):
         assert websocket(port), "Same-port WebSocket upgrade failed"
         print("PASS: real HTTP/static/admin/session, currency, generation/single-use redemption and same-port WebSocket", flush=True)
 
+        status, body, _ = request(opener, origin, "/media/user/userconfig")
+        assert status == 200, "User settings did not render"
+        token = profile_token(body)
+        profile = {
+            "username": "admin", "nickname": "admin", "email": "profile-smoke@example.com",
+            "password": "", "currentPassword": "incorrect", "confirmPassword": "",
+            "profileToken": token,
+        }
+        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        assert json.loads(body)["code"] == 400, "Incorrect current password allowed email change"
+        profile["currentPassword"] = "A123456"
+        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        assert json.loads(body)["code"] == 200, "Email change must work without SMTP"
+        previous_session = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        status, body, final_url = request(previous_session, origin, "/media/user/login", {
+            "username": profile["email"], "password": "A123456"
+        })
+        assert "/media/user/login" not in final_url, "Updated email could not log in"
+        status, body, _ = request(opener, origin, "/media/user/userconfig")
+        profile.update({"profileToken": profile_token(body), "password": "A234567", "confirmPassword": "A234567"})
+        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        changed = json.loads(body)
+        assert changed["code"] == 200 and changed["requireLogin"], "Password change must require login"
+        for old_session in [opener, previous_session]:
+            assert "/media/user/login" in request(old_session, origin, "/media/user/userconfig")[2], "Old session survived password change"
+        status, body, final_url = request(opener, origin, "/media/user/login", {
+            "username": "admin", "password": "A123456"
+        })
+        assert "/media/user/login" in final_url, "Old password still logs in"
+        print("PASS: real email update without SMTP, new-email login, password change and old-session invalidation", flush=True)
+
         docker("stop", "--time", "10", name)
         stopped = state(name)
         assert stopped["ExitCode"] == 0, "Normal shutdown returned: " + json.dumps(stopped)
         docker("rm", name)
         _, origin, opener = start()
         assert b"Direct Port Smoke" in request(opener, origin, "/media/user/login")[1], "Database setting lost after recreation"
-        request(opener, origin, "/media/user/login", {"username": "admin", "password": "A123456"})
+        status, body, final_url = request(opener, origin, "/media/user/login", {
+            "username": "profile-smoke@example.com", "password": "A234567"
+        })
+        assert "/media/user/login" not in final_url, "Updated email/password lost after recreation"
         status, body, _ = request(opener, origin, "/media/finance/user")
         assert status == 200 and b"12.34" in body and html.escape(currency).encode() in body, "Currency/balance lost after recreation"
         status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
