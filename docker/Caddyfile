@@ -23,6 +23,10 @@
 		@hidden path_regexp hidden (^|/)\.
 		respond @hidden 404
 
+		# 内部数据与源码路径直接拒绝，包括带前端入口的访问，避免被重写到登录页。
+		@private path_regexp private (?i)^/(?:index\.php/)?(?:app|config|database|data|backups|runtime|vendor|extend|tests|docker|route)(?:/|$)
+		respond @private 404
+
 		# 只允许前端入口执行，其他 PHP 文件及其路径信息均不可访问。
 		@other_php {
 			path_regexp php (?i)\.php(?:/|$|\.)

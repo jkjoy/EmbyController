@@ -116,6 +116,20 @@ def main(image):
             return port, origin, opener
 
         port, origin, opener = start()
+        private_paths = [
+            "/data", "/data/emby-controller.sqlite", "/data/emby-controller.sqlite-wal",
+            "/data/emby-controller.sqlite-shm", "/runtime/log/example.log", "/backups/archive.zip",
+            "/app", "/config", "/database", "/vendor", "/extend", "/tests", "/docker", "/route",
+            "/index.php/data", "/index.php/data/emby-controller.sqlite",
+            "/index.php/runtime/log/example.log", "/index.php/backups/archive.zip", "/index.php/config/app.php",
+        ]
+
+        def check_private_paths():
+            for path in private_paths:
+                status, _, final_url = request(opener, origin, path)
+                assert status == 404, "Internal path must return 404: " + path
+                assert final_url == origin + path, "Internal path must not redirect to login: " + path
+
         for path in ["/", "/?entrypoint=query"]:
             status, body, final_url = request(opener, origin, path)
             assert status == 200 and final_url == origin + path and b'id="menuButton"' in body, "Website root must directly render the media home page"
@@ -124,14 +138,16 @@ def main(image):
         assert status == 200 and json.loads(body)["msg"] == "pong", "API route must remain available"
         status, body, _ = request(opener, origin, "/assets/index/css/layui.css")
         assert status == 200 and b"layui" in body, "Static resource was not served"
-        for path in ["/.env", "/data/emby-controller.sqlite", "/router.php"]:
+        for path in ["/.env", "/router.php"]:
             assert request(opener, origin, path)[0] in (403, 404), "Private path was exposed: " + path
+        check_private_paths()
         status, body, _ = request(opener, origin, "/server/redeemCode", {"code": "MISSING"})
         assert status == 401 and json.loads(body)["code"] == 401, "Anonymous redemption must return JSON 401"
         status, body, final_url = request(opener, origin, "/user/login", {
             "username": "admin", "password": "A123456"
         })
         assert status == 200 and "/user/login" not in final_url, "Administrator login/session failed"
+        check_private_paths()
         currency = '积分<&"'
         status, body, _ = request(opener, origin, "/admin/setting", {
             "siteName": "Direct Port Smoke", "currencyName": currency
@@ -158,7 +174,7 @@ def main(image):
         status, body, _ = request(opener, origin, "/server/redeemCode", {"code": codes[0]})
         assert json.loads(body)["code"] == 400, "Code must only be redeemable once"
         assert websocket(port), "Same-port WebSocket upgrade failed"
-        print("PASS: real HTTP/static/admin/session, currency, generation/single-use redemption and same-port WebSocket", flush=True)
+        print("PASS: real HTTP/static/admin/session, private-path rejection, currency, generation/single-use redemption and same-port WebSocket", flush=True)
 
         status, body, _ = request(opener, origin, "/user/userconfig")
         assert status == 200, "User settings did not render"

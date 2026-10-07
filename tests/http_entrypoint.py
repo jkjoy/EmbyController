@@ -123,6 +123,9 @@ def main():
         (public / "hidden").mkdir()
         for name in [".env", "hidden/.token", "router.php", "danger.PHP", "danger.php.txt"]:
             (public / name).write_text("<?php echo 'HTTP_ENTRYPOINT_MUST_NOT_LEAK';", encoding="utf-8")
+        # Internal URL prefixes stay private even if files are misplaced in public.
+        (public / "data").mkdir()
+        (public / "data/emby-controller.sqlite").write_bytes(b"HTTP_ENTRYPOINT_MUST_NOT_LEAK")
         database = root / "data/http.sqlite"
         environment = {key: value for key, value in os.environ.items() if not key.startswith(("DB_", "APP_", "TG_", "EMBY_", "MAIL_"))}
         environment.update({"DB_DRIVER": "sqlite", "DB_TYPE": "sqlite", "DB_NAME": str(database), "DB_PREFIX": "rc_"})
@@ -195,6 +198,22 @@ def main():
                 finally:
                     connection.close()
 
+            private_paths = [
+                "/data", "/data/emby-controller.sqlite", "/data/emby-controller.sqlite-wal",
+                "/data/emby-controller.sqlite-shm", "/runtime/log/example.log", "/backups/archive.zip",
+                "/DATA/emby-controller.sqlite", "/%64ata/emby-controller.sqlite",
+                "/app", "/config", "/database", "/vendor", "/extend", "/tests", "/docker", "/route",
+                "/index.php/data", "/index.php/data/emby-controller.sqlite",
+                "/index.php/runtime/log/example.log", "/index.php/backups/archive.zip", "/index.php/config/app.php",
+            ]
+
+            def check_private_paths(headers=None):
+                for path in private_paths:
+                    status, response_headers, body = request(path, headers=headers)
+                    expect(status == 404, "Internal path must return 404: " + path)
+                    expect(not any(name.lower() == "location" for name in response_headers), "Internal path must not redirect to login: " + path)
+                    expect(b"MUST_NOT_LEAK" not in body, "Internal file content must not be exposed: " + path)
+
             caddy()
             expect(request("/fixture.txt")[2] == static, "Caddy must serve public static files")
             for path in ["/", "/?entrypoint=query", "/index/index"]:
@@ -204,6 +223,7 @@ def main():
             for path in ["/.env", "/hidden/.token", "/router.php", "/router.php/anything", "/danger.PHP", "/danger.php.txt"]:
                 status, _, body = request(path)
                 expect(status == 404 and b"MUST_NOT_LEAK" not in body, "Hidden/other PHP content must be denied: " + path)
+            check_private_paths()
             for path in ["/user/login?entrypoint=query", "/user/login.html?entrypoint=query", "/index.php/user/login?entrypoint=query"]:
                 status, _, body = request(path)
                 expect(status == 200 and b'name="username"' in body and b'name="password"' in body, "Root application route must reach the actual login page: " + path)
@@ -225,6 +245,7 @@ def main():
             cookie = headers["Set-Cookie"].split(";", 1)[0]
             status, _, body = request("/admin/setting", headers={"Cookie": cookie})
             expect(status == 200 and b"siteName" in body, "Admin session must survive a subsequent HTTP request")
+            check_private_paths({"Cookie": cookie})
 
             with socket.create_connection(("127.0.0.1", http_port), timeout=5) as client:
                 key = base64.b64encode(b"emby-http-test!!").decode()
@@ -253,7 +274,7 @@ def main():
             expect(status == 200 and trusted["PATH_INFO"] == "/proxy", "Proxy probe must preserve the root application route")
             expect(trusted["HTTP_X_FORWARDED_PROTO"] == "https" and trusted["HTTP_X_FORWARDED_HOST"] == "proxy.example:8090", "Explicitly trusted proxy must retain external HTTPS and Host")
             expect(trusted["HTTP_X_REAL_IP"] == "203.0.113.25" and trusted["HTTP_X_FORWARDED_PORT"] == "8090", "Explicitly trusted proxy must retain client IP and external port")
-            print("PASS: real Caddy/FastCGI SQLite login and admin session, static/hidden/PHP rules, PATH_INFO/query, 20MiB limit, WebSocket frames and explicit proxy trust")
+            print("PASS: real Caddy/FastCGI SQLite login and admin session, static/hidden/PHP/internal-path rules, PATH_INFO/query, 20MiB limit, WebSocket frames and explicit proxy trust")
         except Exception:
             print(logs.read_text(encoding="utf-8", errors="replace")[-12000:])
             raise
