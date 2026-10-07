@@ -39,8 +39,10 @@ class LotteryModel extends Model
     {
         $status = [
             -1 => '已禁用',
+            0 => '未开始',
             1 => '进行中',
-            2 => '已结束'
+            2 => '已结束',
+            3 => '开奖中',
         ];
         return $status[$data['status']] ?? '未知';
     }
@@ -70,4 +72,4 @@ class LotteryModel extends Model
     {
         return $this->hasMany(LotteryParticipantModel::class, 'lotteryId', 'id');
     }
-} 
+}

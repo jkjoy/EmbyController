@@ -74,6 +74,10 @@ ENV
     check($settings['siteName'] === 'Database Title', 'Database must win over legacy env');
     check($settings['siteSubtitle'] === '' && $settings['redisDb'] === 0 && $settings['appDebug'] === false, 'Empty/zero/false must survive import');
     check($settings['appHost'] === 'http://legacy.example.com', 'Legacy host must be normalized');
+    Db::name('config')->where('key', 'appHost')->update(['value' => 'https://stored.example.com:8090/media/']);
+    check(SystemSettings::all(true)['appHost'] === 'https://stored.example.com:8090', 'Stored legacy host must also generate root routes');
+    SystemSettings::save(['appHost' => 'https://stored.example.com:8090/media/']);
+    check(Db::name('config')->where('key', 'appHost')->value('value') === 'https://stored.example.com:8090', 'Saving a legacy host must remove its media prefix');
     check($settings['embyLineList'][0]['name'] === 'First' && $settings['payMethods'] === ['alipay', 'wxpay'], 'Indexed legacy lists must be ordered');
     check($settings['xfyunList']['primary']['apisecret'] === 'secret', 'Legacy nested credentials must import');
     check(strlen($settings['crontabKey']) === 64, 'Missing cron secret must be generated');
@@ -96,6 +100,10 @@ ENV
     $settings = SystemSettings::all(true);
     check($settings['embyApiKey'] === 'legacy secret' && $settings['xfyunList']['primary']['apikey'] === 'key', 'Blank secrets must preserve stored values');
     check($settings['chargeRate'] === 0.0 && $settings['avableRegisterCount'] === 0, 'Explicit zero values must be saved');
+    SystemSettings::save(['signInMinAmount' => '1', 'signInMaxAmount' => '2']);
+    SystemSettings::save(['signInMaxAmount' => '0']);
+    check(SystemSettings::all(true)['signInMaxAmount'] === 0.0, 'Setting only the maximum to zero must disable sign-in with a positive existing minimum');
+    SystemSettings::save(['signInMinAmount' => '0']);
     SystemSettings::save(['embyApiKey' => 'replacement'], ['embyApiKey', 'xfyunList', 'crontabKey']);
     $reset = SystemSettings::all(true);
     check($reset['embyApiKey'] === '' && $reset['xfyunList'] === [], 'Explicit clear must take precedence');
@@ -116,6 +124,11 @@ ENV
         ['embyLineList' => '[{"name":"bad","url":"javascript:alert(1)"}]'],
         ['tgWebhookSecret' => 'spaces invalid'],
         ['signInMinAmount' => '5', 'signInMaxAmount' => '2'],
+        ['signInMinAmount' => '0.001', 'signInMaxAmount' => '1'],
+        ['signInMaxAmount' => '1e0'],
+        ['appHost' => 'https://example.com/emby'],
+        ['appHost' => 'https://example.com/?next=/media'],
+        ['appHost' => 'https://example.com/#media'],
         ['cacheType' => 'unsupported'],
         ['mailUseSocks5' => true],
     ] as $invalid) {

@@ -143,7 +143,10 @@ RUN php-fpm -t \
     && su-exec www-data:www-data php tests/sqlite_migrations.php \
     && su-exec www-data:www-data php tests/sqlite_business.php \
     && su-exec www-data:www-data php tests/exchange_codes.php \
-    && su-exec www-data:www-data php tests/user_profile.php
+    && su-exec www-data:www-data php tests/user_profile.php \
+    && su-exec www-data:www-data php tests/signin.php \
+    && su-exec www-data:www-data php tests/lottery.php \
+    && su-exec www-data:www-data php tests/lottery_admin.php
 
 # 在最终镜像验证真实 HTTP、FastCGI 与同域 WebSocket；Python 仅用于构建测试。
 RUN apk add --no-cache --virtual .http-check python3 \

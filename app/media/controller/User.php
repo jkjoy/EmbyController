@@ -58,7 +58,7 @@ class User extends BaseController
             View::assign('lastSeenItem', null);
         }
 
-        if (!isset($userInfoArray['lastSignTime']) || (isset($userInfoArray['lastSignTime']) && $userInfoArray['lastSignTime'] != date('Y-m-d')) ) {
+        if (\app\service\SignInService::rewardRange() !== null && (!isset($userInfoArray['lastSignTime']) || $userInfoArray['lastSignTime'] != date('Y-m-d'))) {
             View::assign('canSign', true);
         } else {
             View::assign('canSign', false);
@@ -860,104 +860,28 @@ class User extends BaseController
 
     public function sign()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
+        $sessionUser = Session::get('r_user');
+        if ($sessionUser === null) {
+            Session::set('jump_url', Request::url(true));
             return redirect('/user/login');
         }
-
-        if (Request::isPost()) {
-            $data = Request::post();
-            $userModel = new UserModel();
-            $user = $userModel->where('id', Session::get('r_user')->id)->find();
-            if ($user) {
-                $userInfoArray = json_decode(json_encode($user['userInfo']), true);
-
-                if (!judgeCloudFlare('invisible', $data['token']??'')) {
-                    return json(['code' => 400, 'message' => '签到失败，如果今天未签到请重新登录后重试']);
-                }
-
-                $flag = false;
-                if (isset($userInfoArray['loginIps']) && ((isset($userInfoArray['lastSignTime']) && in_array(getRealIp(), $userInfoArray['loginIps']) && $userInfoArray['lastSignTime'] != date('Y-m-d')) || (!isset($userInfoArray['lastSignTime']) && in_array(getRealIp(), $userInfoArray['loginIps'])))){
-                    $flag = true;
-                } else {
-                    if (config('map.enable') && isset($userInfoArray['lastLoginLocation'])) {
-                        $lastloginLocation = json_decode(json_encode($userInfoArray['lastLoginLocation']), true);
-                        $thinLocation = getLocation();
-                        if ($lastloginLocation == $thinLocation) {
-                            $flag = true;
-                        } else if ($lastloginLocation['nation'] == $thinLocation['nation'] && $lastloginLocation['city'] == $thinLocation['city']) {
-                            $flag = true;
-                        }
-                    }
-                }
-
-                if ($flag) {
-                    $userId = Session::get('r_user')->id;
-                    $sysConfigModel = new SysConfigModel();
-                    $signInMaxAmount = $sysConfigModel->where('key', 'signInMaxAmount')->find();
-                    if ($signInMaxAmount) {
-                        $signInMaxAmount = $signInMaxAmount['value'];
-                    } else {
-                        $signInMaxAmount = 0;
-                    }
-                    $signInMinAmount = $sysConfigModel->where('key', 'signInMinAmount')->find();
-                    if ($signInMinAmount) {
-                        $signInMinAmount = $signInMinAmount['value'];
-                    } else {
-                        $signInMinAmount = 0;
-                    }
-                    if ($signInMaxAmount > 0 && $signInMinAmount >= 0 && $signInMaxAmount > $signInMinAmount) {
-                        $score = mt_rand($signInMinAmount*100, $signInMaxAmount*100) / 100;
-                    } else {
-                        $score = 0;
-                    }
-
-                    Db::startTrans();
-                    try {
-                        // 悲观锁串行化，并在锁内统一校验“今日是否已签到”，防止并发或不同判定分支重复领取
-                        $lockedUser = (new UserModel())->where('id', $userId)->lock(true)->find();
-                        $lockedInfo = json_decode(json_encode($lockedUser['userInfo']), true);
-                        if (isset($lockedInfo['lastSignTime']) && $lockedInfo['lastSignTime'] == date('Y-m-d')) {
-                            Db::rollback();
-                            return json(['code' => 400, 'message' => '今日已签到，请明天再来']);
-                        }
-
-                        $lockedInfo['lastSignTime'] = date('Y-m-d');
-                        $lockedUser->userInfo = json_encode($lockedInfo);
-                        $lockedUser->rCoin = $lockedUser->rCoin + $score;
-                        $lockedUser->save();
-
-                        $financeRecordModel = new FinanceRecordModel();
-                        $financeRecordModel->save([
-                            'userId' => $userId,
-                            'action' => 4,
-                            'count' => $score,
-                            'recordInfo' => [
-                                'message' => '签到获取' . $score . currencyName(),
-                            ]
-                        ]);
-                        Db::commit();
-                    } catch (\Exception $e) {
-                        Db::rollback();
-                        return json(['code' => 400, 'message' => '签到失败，请稍后重试']);
-                    }
-
-                    // 更新Session
-                    $user = (new UserModel())->where('id', $userId)->find();
-                    Session::set('r_user', $user);
-
-                    sendTGMessage($userId, "签到成功！今天签到获取" . $score . currencyNameHtml());
-
-                    return json(['code' => 200, 'message' => '签到成功！今天签到获取' . $score . currencyName()]);
-                } else {
-                    return json(['code' => 400, 'message' => '签到失败，如果今天未签到请重新登录后重试']);
-                }
-
-            } else {
-                return json(['code' => 400, 'message' => '签到失败，如果今天未签到请重新登录后重试']);
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用 POST 请求签到'], 405);
+        $data = Request::post();
+        $captcha = $data['token'] ?? '';
+        if (!is_string($captcha) || !judgeCloudFlare('invisible', $captcha)) {
+            return json(['code' => 400, 'message' => '环境异常，请重新验证后签到']);
+        }
+        $userId = (int) $sessionUser['id'];
+        $result = \app\service\SignInService::claimUser($userId);
+        if ($result['code'] === 200) {
+            // A session refresh failure must not turn a committed reward into an error.
+            try {
+                Session::set('r_user', (new UserModel())->find($userId));
+            } catch (\Throwable $error) {
+                trace('签到成功后的会话刷新失败', 'error');
             }
         }
+        return json($result);
     }
 
     public function tgUnbind()

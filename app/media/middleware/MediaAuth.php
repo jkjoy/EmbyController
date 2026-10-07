@@ -19,6 +19,7 @@ class MediaAuth
     {
         $url = $request->url(true);
         $path = '/' . ltrim($request->pathinfo(), '/');
+        $isTokenSignRequest = preg_match('~\A/(?:index/)?account/sign(?:\.html)?/?\z~i', $path) === 1;
         $isRedeemRequest = preg_match('~\A/server/redeemCode(?:\.html)?/?\z~i', $path) === 1;
         $isProfileRequest = preg_match('~\A/user/update(?:\.html)?/?\z~i', $path) === 1
             || (preg_match('~\A/user/sendVerifyCode(?:\.html)?/?\z~i', $path) === 1 && $request->post('action') === 'update');
@@ -47,9 +48,9 @@ class MediaAuth
             }
         }
         View::assign('user', $user);
-        if ($authError !== null) {
+        if ($authError !== null && !$isTokenSignRequest) {
             if ($requiresJsonAuth) return json($authError, $authError['code']);
-            Session::set('jumpUrl', $url);
+            Session::set('jump_url', $url);
             return redirect((string) url('/user/login'));
         }
         if (!$user && $requiresJsonAuth) return json(['code' => 401, 'message' => '请先登录'], 401);
@@ -72,11 +73,13 @@ class MediaAuth
             '/index/getLatestMedia',
             '/server/crontab',
             '/server/resolvePayment',
+            '/account/sign',
+            '/index/account/sign',
         ];
 
         $flag = in_array(strtolower($path), array_map('strtolower', $allowList), true);
         if ((empty($user)) && !$flag) {
-            Session::set('jumpUrl', $request->url(true));
+            Session::set('jump_url', $request->url(true));
             return redirect((string)url('/user/login'));
         }
 

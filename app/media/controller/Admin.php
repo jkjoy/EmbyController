@@ -723,8 +723,8 @@ class Admin extends BaseController
             return redirect((string) url('/user/index'));
         }
 
-        $page = input('page', 1);
-        $pageSize = input('pageSize', 10);
+        $page = filter_var(input('page', 1), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 1;
+        $pageSize = filter_var(input('pageSize', 10), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 100]]) ?: 10;
         $keyword = input('keyword', '');
 
         $lotteryModel = new \app\api\model\LotteryModel();
@@ -743,7 +743,7 @@ class Admin extends BaseController
 
         // 获取总数
         $total = $query->count();
-        $lastPage = ceil($total / $pageSize);
+        $lastPage = max(1, (int) ceil($total / $pageSize));
 
         // 获取当前页数据
         $list = $query->page($page, $pageSize)
@@ -785,36 +785,12 @@ class Admin extends BaseController
             }
 
             try {
-                // 处理prizes数据
-                $prizes = json_decode($data['prizes'], true);
-
-                // 处理开奖时间
-                if (strtotime($data['drawTime']) === false || strtotime($data['drawTime']) <= time()) {
-                    return json(['code' => 400, 'msg' => '开奖时间必须大于当前时间']);
-                }
-
-                // 创建抽奖
-                $lotteryModel = new \app\api\model\LotteryModel();
-                $lotteryData = [
-                    'title' => $data['title'],
-                    'description' => $data['description'],
-                    'drawTime' => date('Y-m-d H:i:s', strtotime($data['drawTime'])),
-                    'prizes' => $prizes,
-                    'keywords' => $data['keywords'] ?? '',
-                    'status' => $data['chatId']?1:0,
-                    'chatId' => $data['chatId'] ?? null
-                ];
-
-//                echo json_encode($lotteryData);
-//                die();
-
-                if ($lotteryModel->save($lotteryData)) {
-                    return json(['code' => 200, 'msg' => '添加成功']);
-                }
-                return json(['code' => 400, 'msg' => '添加失败']);
-
-            } catch (\Exception $e) {
-                return json(['code' => 400, 'msg' => $e->getMessage()]);
+                \app\service\LotteryService::createLottery($data);
+                return json(['code' => 200, 'msg' => '添加成功']);
+            } catch (\DomainException $error) {
+                return json(['code' => $error->getCode() === 404 ? 404 : 400, 'msg' => $error->getMessage()]);
+            } catch (\Throwable $error) {
+                return json(['code' => 500, 'msg' => '抽奖保存失败，请检查数据库连接或稍后重试']);
             }
         }
 
@@ -841,50 +817,12 @@ class Admin extends BaseController
             }
 
             try {
-                // 检查抽奖是否存在
-                $lottery = $lotteryModel->find($id);
-                if (!$lottery) {
-                    return json(['code' => 404, 'msg' => '抽奖不存在']);
-                }
-
-                // 检查状态
-                if ($lottery['status'] == 2) {
-                    return json(['code' => 400, 'msg' => '已结束的抽奖不能编辑']);
-                }
-
-                // 处理prizes数据
-                if (isset($data['prizes'])) {
-                    $prizes = json_decode($data['prizes'], true);
-                    if (!is_array($prizes) || empty($prizes)) {
-                        return json(['code' => 400, 'msg' => '奖品数据格式错误']);
-                    }
-                } else {
-                    return json(['code' => 400, 'msg' => '奖品数据不能为空']);
-                }
-
-                // 处理开奖时间
-                $drawTime = strtotime($data['drawTime']);
-                if ($drawTime === false || $drawTime <= time()) {
-                    return json(['code' => 400, 'msg' => '开奖时间必须大于当前时间']);
-                }
-
-                // 更新数据
-                $updateData = [
-                    'title' => $data['title'],
-                    'description' => $data['description'],
-                    'drawTime' => date('Y-m-d H:i:s', $drawTime),
-                    'keywords' => $data['keywords'] ?? '',
-                    'prizes' => $prizes,
-                    'chatId' => $data['chatId'] ?? null
-                ];
-
-                if ($lottery->save($updateData)) {
-                    return json(['code' => 200, 'msg' => '更新成功']);
-                }
-                return json(['code' => 400, 'msg' => '更新失败']);
-
-            } catch (\Exception $e) {
-                return json(['code' => 400, 'msg' => $e->getMessage()]);
+                \app\service\LotteryService::updateLottery((int) $data['id'], $data);
+                return json(['code' => 200, 'msg' => '更新成功']);
+            } catch (\DomainException $error) {
+                return json(['code' => $error->getCode() === 404 ? 404 : 400, 'msg' => $error->getMessage()]);
+            } catch (\Throwable $error) {
+                return json(['code' => 500, 'msg' => '抽奖保存失败，请检查数据库连接或稍后重试']);
             }
         }
 
@@ -893,7 +831,10 @@ class Admin extends BaseController
             return redirect((string) url('/admin/lotteryList'));
         }
 
-        return view('admin/lottery/edit', ['lottery' => $lottery]);
+        if (!in_array((int) $lottery['status'], [-1, 0, 1], true)) {
+            return redirect((string) url('/admin/lotteryList'));
+        }
+        return view('admin/lottery/edit', ['lottery' => $lottery, 'drawTimeValue' => date('Y-m-d\TH:i', strtotime($lottery['drawTime']))]);
     }
 
     // 修改抽奖状态
@@ -903,37 +844,23 @@ class Admin extends BaseController
             return json(['code' => 403, 'msg' => '无权操作']);
         }
 
+        if (!request()->isPost()) {
+            return json(['code' => 405, 'msg' => '请使用POST请求']);
+        }
         $id = input('id');
         $status = input('status');
-
-        if (empty($id)) {
+        if (!is_scalar($id) || !preg_match('/^[1-9][0-9]*$/D', (string) $id)
+            || !in_array($status, ['true', 'false', true, false], true)) {
             return json(['code' => 400, 'msg' => '参数错误']);
         }
-
-        $lotteryModel = new \app\api\model\LotteryModel();
-
-        // 检查是否存在
-        $lottery = $lotteryModel->find($id);
-        if (!$lottery) {
-            return json(['code' => 404, 'msg' => '抽奖不存在']);
-        }
-
-        // 如果抽奖已结束，不允许修改状态
-        if ($lottery['status'] == 2) {
-            return json(['code' => 400, 'msg' => '已结束的抽奖不能修改状态']);
-        }
-
-        // 修改状态
-        $status = $status === 'true' || $status === true;
-        $newStatus = $status ? -1 : 1;  // true则禁用(-1)，false则启用(1)
-
         try {
-            if ($lottery->save(['status' => $newStatus])) {
-                return json(['code' => 200, 'msg' => '状态更新成功']);
-            }
-            return json(['code' => 500, 'msg' => '状态更新失败']);
-        } catch (\Exception $e) {
-            return json(['code' => 500, 'msg' => '状态更新失败：' . $e->getMessage()]);
+            // 页面传入true表示禁用，服务参数表示是否启用。
+            \app\service\LotteryService::setStatus((int) $id, !($status === 'true' || $status === true));
+            return json(['code' => 200, 'msg' => '状态更新成功']);
+        } catch (\DomainException $error) {
+            return json(['code' => $error->getCode() === 404 ? 404 : 400, 'msg' => $error->getMessage()]);
+        } catch (\Throwable $error) {
+            return json(['code' => 500, 'msg' => '状态更新失败，请稍后重试']);
         }
     }
 
@@ -954,7 +881,36 @@ class Admin extends BaseController
             ->order('createTime', 'desc')
             ->select();
 
-        return view('admin/lottery/participants', ['participants' => $participants]);
+        $lottery = (new \app\api\model\LotteryModel())->find($id);
+        if (!$lottery) return redirect((string) url('/admin/lotteryList'));
+        $participants = $participants->toArray();
+        $notifications = \think\facade\Db::name('lottery_notification')->where('lotteryId', $id)->select()->toArray();
+        $summary = ['pending' => 0, 'delivered' => 0, 'failed' => 0, 'recovered' => false];
+        $delivery = [];
+        foreach ($notifications as $notification) {
+            $state = empty($notification['deliveredAt']) ? 'pending' : 'delivered';
+            $summary[$state]++;
+            if ($state === 'pending' && !empty($notification['lastError'])) $summary['failed']++;
+            $notificationMessage = json_decode((string) $notification['message'], true);
+            if (str_contains(is_string($notificationMessage) ? $notificationMessage : (string) $notification['message'], '本次为旧开奖任务恢复')) $summary['recovered'] = true;
+            if (preg_match('/^winner-([0-9]+)-[0-9]+$/D', (string) $notification['notificationKey'], $matches)) {
+                $participantId = (int) $matches[1];
+                $delivery[$participantId][$state] = ($delivery[$participantId][$state] ?? 0) + 1;
+                if ($state === 'pending' && !empty($notification['lastError'])) {
+                    $delivery[$participantId]['error'] = mb_substr((string) $notification['lastError'], 0, 200);
+                }
+            }
+        }
+        foreach ($participants as &$participant) {
+            $prize = json_decode((string) ($participant['prize'] ?? ''), true);
+            $participant['prizeName'] = is_array($prize) ? (string) ($prize['name'] ?? '-') : '-';
+            $participant['prizeContent'] = is_array($prize) ? (string) ($prize['content'] ?? '') : '';
+            $progress = $delivery[(int) $participant['id']] ?? [];
+            $participant['notificationStatus'] = $progress ? '已送达' . ($progress['delivered'] ?? 0) . '条，待发送' . ($progress['pending'] ?? 0) . '条' : '-';
+            $participant['notificationError'] = $progress['error'] ?? '';
+        }
+        unset($participant);
+        return view('admin/lottery/participants', ['participants' => $participants, 'lottery' => $lottery, 'notificationSummary' => $summary]);
     }
 
     // 系统设置页面

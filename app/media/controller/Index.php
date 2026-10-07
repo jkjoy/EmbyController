@@ -247,7 +247,7 @@ class Index extends BaseController
         if (request()->isGet()) {
             $id = input('id');
             if ($id == 0) {
-                $file = file_get_contents('static/media/img/movie-img.jpeg');
+                $file = file_get_contents(root_path() . 'public/static/media/img/movie-img.jpeg');
                 return response($file, 200, ['Content-Type' => 'image/jpeg']);
             }
             $url = Config::get('media.urlBase') . 'Items/' . $id . '/Images/Primary?quality=80&api_key=' . Config::get('media.apiKey');
@@ -261,7 +261,7 @@ class Index extends BaseController
             ]);
             $response = curl_exec($ch);
             if ($response == '' || $response == 'Object reference not set to an instance of an object.') {
-                $file = file_get_contents('static/media/img/movie-img.jpeg');
+                $file = file_get_contents(root_path() . 'public/static/media/img/movie-img.jpeg');
                 return response($file, 200, ['Content-Type' => 'image/jpeg']);
             }
             return response($response, 200, ['Content-Type' => 'image/jpeg']);

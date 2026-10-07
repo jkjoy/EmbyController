@@ -13,8 +13,8 @@ return [
         'file' => [
             // 驱动方式
             'type'       => 'File',
-            // 缓存保存目录
-            'path'       => '',
+            // 多应用共享凭据、验证码与任务缓存，不随 media/api 的 runtime 改变。
+            'path'       => root_path() . 'runtime/cache/',
             // 缓存前缀
             'prefix'     => '',
             // 缓存有效期 0表示永久缓存

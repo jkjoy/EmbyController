@@ -9,8 +9,7 @@ use think\facade\Db;
 use Channel\Server as ChannelServer;
 use think\facade\Config;
 use app\service\SystemSettings;
-use app\api\model\LotteryModel;
-use app\api\model\LotteryParticipantModel;
+use app\service\LotteryService;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -709,280 +708,26 @@ function sendNotification($userId, $message) {
     }
 }
 
-// 检查抽奖开奖
+// 开奖只执行短 SQL 事务；通知持久化后独立投递，失败会在后续定时任务重试。
 function checkLotteryDraw() {
-    if (telegramToken() === '') {
-        return;
-    }
-
-    $lotteryModel = new \app\api\model\LotteryModel();
-    $participantModel = new \app\api\model\LotteryParticipantModel();
-
-    // Log the start of the lottery check process
     $logFile = __DIR__ . '/runtime/log/lottery_draw.log';
-    $now = date('Y-m-d H:i:s');
-    file_put_contents($logFile, "[$now] 开始检查抽奖\n", FILE_APPEND);
-
-    // 获取所有到期未开奖的抽奖
-    $lotteries = $lotteryModel
-        ->where('status', 1)
-        ->where('drawTime', '<=', date('Y-m-d H:i:s'))
-        ->select();
-
-    if ($lotteries->isEmpty()) {
-        file_put_contents($logFile, "[$now] 没有需要开奖的抽奖\n", FILE_APPEND);
-        return;
-    }
-
-    foreach ($lotteries as $lottery) {
-        try {
-            // Assuming you have a custom DB transaction handler or use native PHP PDO transactions here
-            // For example:
-            // $db->beginTransaction();
-
-            $lotteryTime = date('Y-m-d H:i:s');
-
-            // 等待随机时间
-            $waitTime = mt_rand(1, 5);
-            sleep($waitTime);
-
-            file_put_contents($logFile, "[$lotteryTime] 锁定抽奖 #{$lottery['id']} 以进行开奖\n", FILE_APPEND);
-            // 原子锁定抽奖（仅当仍为进行中），防止并发/重入重复开奖
-            $claimed = $lotteryModel->where('id', $lottery['id'])->where('status', 1)->update(['status' => 3]);
-            if (!$claimed) {
-                file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 已被锁定或处理，跳过\n", FILE_APPEND);
-                continue;
-            }
-
-            file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 已锁定\n", FILE_APPEND);
-
-            // 获取所有参与者
-            $participants = $participantModel
-                ->where('lotteryId', $lottery['id'])
-                ->where('status', 0)
-                ->select()
-                ->toArray();
-
-            if (empty($participants)) {
-                file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 没有参与者，标记为已完成\n", FILE_APPEND);
-                $lotteryModel->where('id', $lottery['id'])->update(['status' => 2]);
-                file_put_contents($logFile, "[$lotteryTime] 更新抽奖 #{$lottery['id']} 状态为已完成，因为没有参与者\n", FILE_APPEND);
-                // $db->commit();
-                continue;
-            }
-
-            file_put_contents($logFile, "[$lotteryTime] 参与者数量：" . count($participants) . "\n", FILE_APPEND);
-
-            // 打乱参与者顺序
-            shuffle($participants);
-
-            $winnersList = [];  // 用于存储所有获奖者信息
-            $prizes = is_array($lottery['prizes']) ? $lottery['prizes'] : json_decode($lottery['prizes'], true);
-
-            file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 的奖项结构:\n" . json_encode($prizes, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
-
-            // 处理每个奖项
-            foreach ($prizes as $prizeIndex => $prize) {
-                $winnersList[$prize['name']] = [];
-                $prizeWinners = array_splice($participants, 0, min($prize['count'], count($participants)));
-
-                file_put_contents($logFile, "[$lotteryTime] 抽取 {$prize['name']} 奖品\n", FILE_APPEND);
-
-                foreach ($prizeWinners as $winner) {
-                    try {
-                        // Use telegramId and lotteryId for uniqueness
-                        $uniqueIdentifier = ['telegramId' => $winner['telegramId'], 'lotteryId' => $lottery['id']];
-                        $participant = $participantModel->where($uniqueIdentifier)->find();
-
-                        if ($participant) {
-                            $prizeContent = $prize['contents'][count($winnersList[$prize['name']])] ?? $prize['contents'][0];
-                            $expAwarded = false;
-
-                            if (preg_match('/「Exp(\d+)」/', $prizeContent, $matches)) {
-                                $exp = intval($matches[1]);
-                                $telegramUserModel = new \app\api\model\TelegramModel();
-                                $tgUser = $telegramUserModel->where('telegramId', $winner['telegramId'])->find();
-
-                                if (!$tgUser) {
-                                    // 如果找不到TG用户,直接标记为未中奖
-                                    file_put_contents($logFile, "[$lotteryTime] 找不到用户 {$winner['telegramId']} 的TG账号,标记为未中奖\n", FILE_APPEND);
-                                    $participantModel->where($uniqueIdentifier)->update(['status' => 2]);
-                                    continue;
-                                }
-
-                                $userid = $tgUser['userId'];
-                                $userModel = new \app\api\model\UserModel();
-                                $user = $userModel->where('id', $userid)->find();
-
-                                if ($user && $user['authority'] >= 0) {
-                                    $authority = $user['authority'];
-                                    if ($authority >= 0) {
-                                        if ($authority > 0) {
-                                            $authority = $authority + $exp;
-                                        }
-                                        if ($authority > 100) {
-                                            $authority = 100;
-                                        }
-                                        $userModel->where('id', $userid)->update(['authority' => $authority]);
-                                        $expAwarded = true;
-                                        file_put_contents($logFile, "[$lotteryTime] 更新用户 {$winner['telegramId']} 的经验为 Exp{$authority}\n", FILE_APPEND);
-                                    }
-                                }
-
-                                // 如果无法兑换经验，需要重新抽取一位获奖者
-                                if (!$expAwarded) {
-                                    file_put_contents($logFile, "[$lotteryTime] 用户 {$winner['telegramId']} 无法兑换经验，重新抽取获奖者\n", FILE_APPEND);
-
-                                    // 将当前参与者标记为未中奖
-                                    $participantModel->where($uniqueIdentifier)->update(['status' => 2]);
-
-                                    // 从剩余参与者中重新抽取一位
-                                    $newWinner = $participantModel
-                                        ->where('lotteryId', $lottery['id'])
-                                        ->where('status', 0)
-                                        ->orderRand()
-                                        ->find();
-
-                                    if ($newWinner) {
-                                        file_put_contents($logFile, "[$lotteryTime] 重新抽取到新获奖者 {$newWinner['telegramId']}\n", FILE_APPEND);
-                                        // 递归处理新获奖者
-                                        array_splice($participants, array_search($winner, $participants), 1);
-                                        array_push($participants, $newWinner->toArray());
-                                        continue;
-                                    } else {
-                                        file_put_contents($logFile, "[$lotteryTime] 无法找到新的合格获奖者，跳过此奖项\n", FILE_APPEND);
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            file_put_contents($logFile, "[$lotteryTime] 更新获奖者 {$winner['telegramId']} 的状态\n", FILE_APPEND);
-                            // 更新中奖状态
-                            $participantModel->where($uniqueIdentifier)->update([
-                                'status' => 1,
-                                'prize' => json_encode([
-                                    'name' => $prize['name'],
-                                    'content' => $prizeContent
-                                ])
-                            ]);
-                            file_put_contents($logFile, "[$lotteryTime] 成功更新获奖者 {$winner['telegramId']} 的状态，奖品：{$prize['name']}\n", FILE_APPEND);
-
-                            // 记录获奖者信息
-                            $winnersList[$prize['name']][] = $winner['telegramId'];
-                            file_put_contents($logFile, "[$lotteryTime] {$prize['name']} 的获奖者：{$winner['telegramId']}\n", FILE_APPEND);
-
-                            // 发送中奖私信通知
-                            file_put_contents($logFile, "[$lotteryTime] 发送私信给 {$winner['telegramId']}\n", FILE_APPEND);
-                            $privateMessage = "🎉 恭喜您！\n\n";
-                            $privateMessage .= "您在「{$lottery['title']}」抽奖活动中获得了：\n";
-                            $privateMessage .= "🎁 {$prize['name']}\n\n";
-                            $privateMessage .= "奖品内容：" . ($prize['contents'][count($winnersList[$prize['name']])-1] ?? $prize['contents'][0]) . "\n\n";
-                            $privateMessage .= "请注意查收您的奖品！";
-
-                            $token = telegramToken();
-                            if (!$token) {
-                                throw new \Exception("Telegram bot token is not configured");
-                            }
-
-                            $telegram = new \Telegram\Bot\Api($token);
-
-                            try {
-                                $telegram->sendMessage([
-                                    'chat_id' => $winner['telegramId'],
-                                    'text' => $privateMessage,
-                                    'parse_mode' => 'HTML',
-                                ]);
-                                file_put_contents($logFile, "[$lotteryTime] 已发送私信给获奖者 {$winner['telegramId']}\n", FILE_APPEND);
-                            } catch (\Exception $e) {
-                                file_put_contents($logFile, "[$lotteryTime] 发送私信时出错，用户 {$winner['telegramId']}：" . $e->getMessage() . "\n", FILE_APPEND);
-                            }
-                        } else {
-                            file_put_contents($logFile, "[$lotteryTime] 找不到参与者 {$winner['telegramId']} 的记录\n", FILE_APPEND);
-                        }
-                    } catch (\Exception $e) {
-                        file_put_contents($logFile, "[$lotteryTime] 处理获奖者 {$winner['telegramId']} 时出错，奖品：{$prize['name']}：" . $e->getMessage() . "\n", FILE_APPEND);
-                    }
-                }
-            }
-
-            // 更新未中奖的参与者状态
-            try {
-                file_put_contents($logFile, "[$lotteryTime] 更新未中奖参与者的状态\n", FILE_APPEND);
-                $participantModel
-                    ->where('lotteryId', $lottery['id'])
-                    ->where('status', 0)
-                    ->update(['status' => 2]);
-                file_put_contents($logFile, "[$lotteryTime] 已更新抽奖 #{$lottery['id']} 的未中奖参与者状态\n", FILE_APPEND);
-            } catch (\Exception $e) {
-                file_put_contents($logFile, "[$lotteryTime] 更新抽奖 #{$lottery['id']} 的未中奖参与者状态时出错：" . $e->getMessage() . "\n", FILE_APPEND);
-            }
-
-            // 在群组中公布中奖名单
-            $groupMessage = "🎉 抽奖结果公布 🎉\n\n";
-            $groupMessage .= "「{$lottery['title']}」开奖啦！\n\n";
-
-            foreach ($winnersList as $prizeName => $winners) {
-                if (!empty($winners)) {
-                    $groupMessage .= "🎁 {$prizeName}：\n";
-                    foreach ($winners as $telegramId) {
-                        $groupMessage .= "- <a href=\"tg://user?id={$telegramId}\">{$telegramId}</a>\n";
-                    }
-                    $groupMessage .= "\n";
-                }
-            }
-
-            $groupMessage .= "恭喜以上中奖的小伙伴！🎊\n";
-            $groupMessage .= "奖品详情已私信通知，请注意查收～";
-
-            try {
-                file_put_contents($logFile, "[$lotteryTime] 准备发送群组消息\n", FILE_APPEND);
-                // 发送群组消息
-                $token = telegramToken();
-                if (!$token) {
-                    throw new \Exception("Telegram bot token is not configured");
-                }
-                $telegram = new \Telegram\Bot\Api($token);
-                try {
-                    $telegram->sendMessage([
-                        'chat_id' => $lottery['chatId'],
-                        'text' => $groupMessage,
-                        'parse_mode' => 'HTML',
-                    ]);
-                    file_put_contents($logFile, "[$lotteryTime] 已发送群组消息，抽奖 #{$lottery['id']}\n", FILE_APPEND);
-                } catch (\Exception $e) {
-                    file_put_contents($logFile, "[$lotteryTime] 发送群组消息时出错，抽奖 #{$lottery['id']}：" . $e->getMessage() . "\n", FILE_APPEND);
-                }
-            } catch (\Exception $e) {
-                file_put_contents($logFile, "[$lotteryTime] 配置获取时出错，抽奖 #{$lottery['id']}：" . $e->getMessage() . "\n", FILE_APPEND);
-            }
-
-            // 更新抽奖状态为已开奖
-            try {
-                file_put_contents($logFile, "[$lotteryTime] 更新抽奖状态为已开奖\n", FILE_APPEND);
-                $lotteryModel->where('id', $lottery['id'])->update(['status' => 2]);
-                file_put_contents($logFile, "[$lotteryTime] 抽奖 #{$lottery['id']} 状态已更新为已开奖\n", FILE_APPEND);
-                // $db->commit();
-                file_put_contents($logFile, "[$lotteryTime] 交易提交成功，抽奖 #{$lottery['id']}\n", FILE_APPEND);
-            } catch (\Exception $e) {
-                // $db->rollBack();
-                file_put_contents($logFile, "[$lotteryTime] 更新抽奖 #{$lottery['id']} 状态时出错：" . $e->getMessage() . "\n", FILE_APPEND);
-                throw $e; // Re-throw for the outer catch block to log in the lottery_error log
-            }
-
-            // 记录开奖日志
-            $successTime = date('Y-m-d H:i:s');
-            $message = "[$successTime] 成功开奖，抽奖 {$lottery['id']}：{$lottery['title']}\n";
-            file_put_contents($logFile, $message, FILE_APPEND);
-
-        } catch (\Exception $e) {
-            // $db->rollBack();
-
-            // 记录错误日志
-            $errorTime = date('Y-m-d H:i:s');
-            $message = "[$errorTime] 开奖抽奖 {$lottery['id']} 时出错：" . $e->getMessage() . "\n";
-            file_put_contents($logFile, $message, FILE_APPEND);
+    foreach (LotteryService::drawDue() as $id => $result) {
+        if (isset($result['error'])) {
+            $message = '[' . date('Y-m-d H:i:s') . "] 抽奖 #{$id} 开奖失败，事务已回滚，将重试：" . $result['error'] . "\n";
             file_put_contents(__DIR__ . '/runtime/log/lottery_error.log', $message, FILE_APPEND);
+        } elseif ($result['drawn']) {
+            $description = $result['recovered'] ? '恢复旧开奖任务，保留记录结果，历史奖励需管理员核实' : '开奖完成';
+            file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] 抽奖 #{$id} {$description}\n", FILE_APPEND);
         }
+    }
+    $token = telegramToken();
+    if ($token === '') return;
+    $telegram = new \Telegram\Bot\Api($token);
+    $delivery = LotteryService::deliverNotifications(function (array $parameters) use ($telegram) {
+        $telegram->sendMessage($parameters);
+    });
+    if ($delivery['failed']) {
+        file_put_contents(__DIR__ . '/runtime/log/lottery_error.log', '[' . date('Y-m-d H:i:s') . '] ' . $delivery['failed'] . " 条抽奖通知发送失败，已保留并安排重试\n", FILE_APPEND);
     }
 }
 

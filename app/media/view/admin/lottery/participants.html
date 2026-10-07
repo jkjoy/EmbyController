@@ -2,8 +2,15 @@
 {block name="content"}
 <div class="space-y-6">
     <div class="flex justify-between items-center">
-        <h1 class="text-2xl font-bold">抽奖参与者</h1>
+        <h1 class="text-2xl font-bold">抽奖参与者：{$lottery.title}</h1>
         <a href="{:url('/admin/lotteryList')}" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors">返回列表</a>
+    </div>
+
+    <div class="p-4 bg-white/5 rounded-lg text-sm text-gray-300">
+        开奖通知：已送达 {$notificationSummary.delivered} 条，待发送 {$notificationSummary.pending} 条，其中发送失败 {$notificationSummary.failed} 条。待发送通知会自动重试，请确认机器人已配置并允许私信。
+        {if $notificationSummary.recovered}
+        <p class="mt-2 text-yellow-300">此抽奖由旧开奖任务恢复，仅保留已记录结果；未记录的历史奖励请人工核实，系统不会重复发放经验。</p>
+        {/if}
     </div>
 
     <!-- 参与者列表 -->
@@ -16,6 +23,7 @@
                         <th class="text-left py-3 px-4">Telegram ID</th>
                         <th class="text-left py-3 px-4">状态</th>
                         <th class="text-left py-3 px-4">奖品</th>
+                        <th class="text-left py-3 px-4">中奖私信</th>
                         <th class="text-left py-3 px-4">参与时间</th>
                     </tr>
                 </thead>
@@ -33,7 +41,8 @@
                             <span class="px-2 py-1 bg-gray-500/20 text-gray-300 rounded-full text-sm">未中奖</span>
                             {/if}
                         </td>
-                        <td class="py-3 px-4">{$vo.prizeId ? $vo.prizeId : '-'}</td>
+                        <td class="py-3 px-4">{$vo.prizeName}<div class="text-sm text-gray-400 break-all">{$vo.prizeContent}</div></td>
+                        <td class="py-3 px-4">{$vo.notificationStatus}<div class="text-sm text-yellow-300 break-all">{$vo.notificationError}</div></td>
                         <td class="py-3 px-4">{$vo.createTime|date="Y-m-d H:i:s"}</td>
                     </tr>
                     {/volist}
@@ -42,4 +51,4 @@
         </div>
     </div>
 </div>
-{/block} 
+{/block}

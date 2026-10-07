@@ -1,0 +1,85 @@
+{__NOLAYOUT__}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>{:siteTitle('机器人签到')}</title>
+    {include file='public/_meta' /}
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #111827, #312e81); color: #f8fafc; font-family: system-ui, sans-serif; }
+        main { width: 100%; max-width: 420px; padding: 32px; border: 1px solid #ffffff24; border-radius: 20px; background: #ffffff0d; }
+        h1 { font-size: 24px; margin: 0 0 16px; }
+        p { line-height: 1.65; color: #cbd5e1; }
+        button { margin-top: 16px; width: 100%; padding: 14px; border: none; border-radius: 10px; color: white; background: #4f46e5; font: inherit; cursor: pointer; }
+        button:disabled { opacity: .55; cursor: default; }
+        #status { min-height: 48px; margin-top: 20px; }
+        footer { margin-top: 24px; text-align: center; font-size: 13px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>每日签到</h1>
+    {if $signkey != ''}
+    <p>签到链接 5 分钟内有效，只能领取一次。请使用登录过的 IP 或同城网络。</p>
+    <form id="signForm" action="/account/sign" method="post">
+        <input type="hidden" name="signkey" value="{$signkey}">
+        <input type="hidden" name="token" id="captchaToken" value="">
+        {if $sitekey != ''}<div id="captcha"></div>{/if}
+        <button id="signButton" type="submit" {if $sitekey != ''}disabled{/if}>签到</button>
+    </form>
+    <p id="status" role="status" aria-live="polite">{if $sitekey != ''}正在验证环境，请稍等。{/if}</p>
+    {else}
+    <p role="status">{$errMsg}</p>
+    <p>请在机器人中发送 /sign 重新获取签到链接。</p>
+    {/if}
+</main>
+{include file='public/_footer' /}
+{if $signkey != ''}
+<script>
+    const signForm = document.getElementById('signForm');
+    const signButton = document.getElementById('signButton');
+    const statusText = document.getElementById('status');
+    const captchaToken = document.getElementById('captchaToken');
+    let submitting = false;
+    let widgetId = null;
+    window.onloadTurnstileCallback = function () {
+        widgetId = turnstile.render('#captcha', {
+            sitekey: {:json_encode($sitekey, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)},
+            callback: function (token) { captchaToken.value = token; signButton.disabled = false; statusText.textContent = '验证通过，可以签到。'; },
+            'expired-callback': function () { captchaToken.value = ''; signButton.disabled = true; statusText.textContent = '验证已过期，请重新验证。'; },
+            'error-callback': function () { signButton.disabled = true; statusText.textContent = '验证失败，请刷新页面重试。'; }
+        });
+    };
+    signForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (submitting) return;
+        submitting = true;
+        signButton.disabled = true;
+        statusText.textContent = '正在签到，请稍等。';
+        let finished = false;
+        try {
+            const response = await fetch('/account/sign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                body: new URLSearchParams(new FormData(signForm))
+            });
+            const data = await response.json();
+            statusText.textContent = data.message || '签到失败，请稍后重试。';
+            finished = data.code === 200 || data.code === 403 || /已失效|已签到|已关闭/.test(data.message || '');
+            if (data.code === 200) signButton.textContent = '今日已签到';
+        } catch (error) {
+            statusText.textContent = '网络异常，请稍后重试。';
+        } finally {
+            submitting = false;
+            if (!finished && widgetId !== null) { captchaToken.value = ''; turnstile.reset(widgetId); }
+            else if (!finished) signButton.disabled = false;
+        }
+    });
+</script>
+{if $sitekey != ''}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback&amp;render=explicit" defer></script>{/if}
+{/if}
+</body>
+</html>

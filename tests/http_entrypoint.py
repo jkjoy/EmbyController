@@ -114,6 +114,9 @@ def main():
             shutil.copyfile(file, root / "database/migrations" / file.name)
         (root / "vendor/autoload.php").write_text("<?php return require " + php_string((project / "vendor/autoload.php").as_posix()) + ";", encoding="utf-8")
         shutil.copyfile(project / "public/index.php", public / "index.php")
+        for asset in ["static/media/img/movie-img.jpeg", "static/index/img/logo-dark.png"]:
+            (public / asset).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(project / "public" / asset, public / asset)
         # Framework autoload lives in the real project; explicitly isolate its root.
         index = (public / "index.php").read_text(encoding="utf-8")
         (public / "index.php").write_text(index.replace('(new App())', '(new App(dirname(__DIR__)))'), encoding="utf-8")
@@ -139,6 +142,12 @@ def main():
         with sqlite3.connect(database) as db:
             db.execute("UPDATE rc_user SET userInfo = ? WHERE userName = 'admin'", (json.dumps({"loginIps": ["127.0.0.1"]}),))
         db.close()
+        # Issue the real robot credential from the API runtime; HTTP consumes it in media.
+        fixture = root / "signin-fixture.php"
+        fixture.write_text("<?php require __DIR__.'/vendor/autoload.php'; $app = new \\think\\App(__DIR__); $app->initialize(); $app->setRuntimePath(__DIR__.'/runtime/api/'); \\app\\service\\SystemSettings::save(['signInMinAmount'=>'1','signInMaxAmount'=>'1']); \\think\\facade\\Cache::set('latestMedia-', '[]', 600); echo json_encode(\\app\\service\\SignInService::issueToken(1));", encoding="utf-8")
+        issued = json.loads(run(php + [str(fixture)], environment, root))
+        expect(issued["code"] == 200, "The API runtime must issue a valid robot sign-in credential")
+        signkey = issued["token"]
 
         http_port, fastcgi_port, ws_port = port(), port(), port()
         websocket = socketserver.ThreadingTCPServer(("127.0.0.1", ws_port), WebSocketStub)
@@ -227,6 +236,24 @@ def main():
             for path in ["/user/login?entrypoint=query", "/user/login.html?entrypoint=query", "/index.php/user/login?entrypoint=query"]:
                 status, _, body = request(path)
                 expect(status == 200 and b'name="username"' in body and b'name="password"' in body, "Root application route must reach the actual login page: " + path)
+            for path in ["/user/register", "/user/terms", "/user/privacy"]:
+                expect(request(path)[0] == 200, "Public user page must render without a login redirect: " + path)
+            for path in ["/account/sign", "/account/sign.html", "/index/account/sign", "/index/account/sign.html", "/index.php/account/sign"]:
+                status, _, body = request(path + "?signkey=" + signkey)
+                expect(status == 200 and signkey.encode() in body and b"/account/sign" in body, "Anonymous robot link must render with a credential from the API runtime: " + path)
+                expect(b"/index/account/sign" not in body, "Robot page must submit to the new root URL")
+            status, _, body = request("/account/sign?signkey=invalid")
+            expect(status == 200 and "签到链接已失效".encode() in body, "Invalid robot links must show their own error page")
+            for path in ["/server/crontab?crontabkey=invalid", "/server/resolvePayment?key=invalid"]:
+                status, _, body = request(path)
+                expect(status == 200 and json.loads(body)["code"] == 400, "Public callbacks must reach credential validation without login: " + path)
+            for path, asset in [("/index/getPrimaryImg?id=0", "static/media/img/movie-img.jpeg"), ("/api/common/getHeadImg?id=0", "static/index/img/logo-dark.png")]:
+                status, _, body = request(path)
+                expect(status == 200 and body == (public / asset).read_bytes(), "Root image endpoint must load its local fallback independently of working directory: " + path)
+            status, _, body = request("/index/getLatestMedia", "POST", "", {"Content-Type": "application/x-www-form-urlencoded"})
+            expect(status == 200 and json.loads(body)["latestMedia"] == [], "Public latest-media request must share the API runtime cache")
+            status, _, body = request("/index/getLineStatus", "POST", "", {"Content-Type": "application/x-www-form-urlencoded"})
+            expect(status == 200 and json.loads(body)["code"] == 200, "Public line-status request must remain reachable")
             for path in ["/admin/setting", "/admin/setting?next=/user/login"]:
                 status, headers, _ = request(path)
                 expect(status in (301, 302) and "/user/login" in headers.get("Location", ""), "Unauthenticated admin route must redirect: " + path)
@@ -238,13 +265,39 @@ def main():
                 for route in [path, path + ".html"]:
                     status, _, body = request(route, "POST", urllib.parse.urlencode(data), {"Content-Type": "application/x-www-form-urlencoded"})
                     expect(status == 401 and json.loads(body)["code"] == 401, "Unauthenticated protected action must return JSON 401: " + route)
-            status, _, body = request("/api/index/ping")
-            expect(status == 200 and json.loads(body)["msg"] == "pong", "The API application must remain available under /api")
+            for path in ["/api/ping", "/api/index/ping", "/api/common/ping", "/api/media/ping", "/api/telegram/ping"]:
+                status, _, body = request(path)
+                expect(status == 200 and json.loads(body)["msg"] == "pong", "The API application must remain available under /api: " + path)
             status, headers, _ = request("/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded"})
             expect(status in (301, 302) and "RANDALLANJIESESSID=" in headers.get("Set-Cookie", ""), "Initial admin must log in through real HTTP and receive a session cookie")
             cookie = headers["Set-Cookie"].split(";", 1)[0]
             status, _, body = request("/admin/setting", headers={"Cookie": cookie})
             expect(status == 200 and b"siteName" in body, "Admin session must survive a subsequent HTTP request")
+            for data in [{"money": "1", "method": "usdt"}, {"money": "1", "method": "trx"}, {"money": "1", "method": "alipay"}, {}]:
+                status, _, body = request("/server/pay", "POST", urllib.parse.urlencode(data), {"Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie})
+                expect(status == 200 and json.loads(body)["code"] == 400, "Unavailable payment methods must stop before creating an order with a missing callback")
+            for path in [
+                "/user/index", "/user/userconfig", "/user/request", "/user/newRequest", "/user/seek", "/user/comment", "/user/notifications",
+                "/server/account", "/server/servers", "/server/devices", "/server/create",
+                "/finance/user", "/finance/record", "/finance/payRecord", "/admin/index", "/admin/userList", "/admin/addUser",
+                "/admin/exchangeCodeList", "/admin/addExchangeCode", "/admin/lotteryList", "/admin/addLottery", "/admin/request", "/admin/seek", "/admin/logs",
+            ]:
+                status, _, body = request(path, headers={"Cookie": cookie})
+                expect(status == 200 and body, "Authenticated navigation must reach a rendered root page: " + path)
+                expect(re.search(rb'''["']/media(?:/|["'])''', body) is None, "Rendered navigation must use root routes: " + path)
+            status, _, body = request("/index/account/sign.html", "POST", urllib.parse.urlencode({"signkey": signkey}), {"Content-Type": "application/x-www-form-urlencoded"})
+            expect(status == 200 and json.loads(body)["code"] == 200 and json.loads(body)["reward"] == "1.00", "Legacy robot POST must claim the configured reward without a website session")
+            status, _, body = request("/account/sign", "POST", urllib.parse.urlencode({"signkey": signkey}), {"Content-Type": "application/x-www-form-urlencoded"})
+            expect(json.loads(body)["code"] == 400, "Consumed robot link must reject replay")
+            status, _, body = request("/user/sign", "POST", "", {"Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie})
+            expect(json.loads(body)["code"] == 400, "Website sign-in must share the same daily limit as robot sign-in")
+            with sqlite3.connect(database) as db:
+                expect(db.execute("SELECT COUNT(*) FROM rc_finance_record WHERE action = 4").fetchone()[0] == 1, "Robot and website sign-in must record one daily reward")
+            # A protected deep link survives the login round trip.
+            status, headers, _ = request("/admin/lotteryList?keyword=route-fixture")
+            login_cookie = headers["Set-Cookie"].split(";", 1)[0]
+            status, headers, _ = request("/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded", "Cookie": login_cookie})
+            expect(status in (301, 302) and headers.get("Location", "").endswith("/admin/lotteryList?keyword=route-fixture"), "Login must return to the requested root route and preserve its query")
             check_private_paths({"Cookie": cookie})
 
             with socket.create_connection(("127.0.0.1", http_port), timeout=5) as client:
@@ -274,7 +327,7 @@ def main():
             expect(status == 200 and trusted["PATH_INFO"] == "/proxy", "Proxy probe must preserve the root application route")
             expect(trusted["HTTP_X_FORWARDED_PROTO"] == "https" and trusted["HTTP_X_FORWARDED_HOST"] == "proxy.example:8090", "Explicitly trusted proxy must retain external HTTPS and Host")
             expect(trusted["HTTP_X_REAL_IP"] == "203.0.113.25" and trusted["HTTP_X_FORWARDED_PORT"] == "8090", "Explicitly trusted proxy must retain client IP and external port")
-            print("PASS: real Caddy/FastCGI SQLite login and admin session, static/hidden/PHP/internal-path rules, PATH_INFO/query, 20MiB limit, WebSocket frames and explicit proxy trust")
+            print("PASS: real root navigation/callbacks/images/API, cross-app robot sign-in/replay/daily limit, login return route, Caddy/FastCGI session/private paths, WebSocket and proxy trust")
         except Exception:
             print(logs.read_text(encoding="utf-8", errors="replace")[-12000:])
             raise

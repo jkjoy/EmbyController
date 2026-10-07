@@ -6,15 +6,15 @@
         <a href="{:url('/admin/lotteryList')}" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors">返回列表</a>
     </div>
 
-    <form id="lotteryForm" class="space-y-6">
+    <form id="lotteryForm" class="space-y-6" data-submit-url="{:url('/admin/editLottery')}" data-return-url="{:url('/admin/lotteryList')}">
         <input type="hidden" name="id" value="{$lottery.id}">
-        
+
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <!-- 标题 -->
             <div class="space-y-2">
                 <label class="text-sm font-medium">标题</label>
-                <input type="text" 
-                       name="title" 
+                <input type="text"
+                       name="title" maxlength="100"
                        required
                        value="{$lottery.title}"
                        class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -23,19 +23,19 @@
             <!-- 开奖时间 -->
             <div class="space-y-2">
                 <label class="text-sm font-medium">开奖时间</label>
-                <input type="datetime-local" 
-                       name="drawTime" 
+                <input type="datetime-local"
+                       name="drawTime"
                        id="drawTime"
                        required
-                       value="{$lottery.drawTime}"
+                       value="{$drawTimeValue}"
                        class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
 
             <!-- 群组ID -->
             <div class="space-y-2">
                 <label class="text-sm font-medium">群组ID</label>
-                <input type="number" 
-                       name="chatId"
+                <input type="number"
+                       name="chatId" max="-1" step="1"
                        value="{$lottery.chatId}"
                        class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 <p class="text-xs text-gray-400">可选，填写后开奖结果将在该群组公布</p>
@@ -45,16 +45,16 @@
             <div class="space-y-2">
                 <label class="text-sm font-medium">关键词</label>
                 <input type="text"
-                       name="keywords"
+                       name="keywords" maxlength="100"
                        value="{$lottery.keywords}"
                        class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                <p class="text-xs text-gray-400">可选，填写后用户可通过关键词参与抽奖</p>
+                <p class="text-xs text-gray-400">可选；群内也可发送 /joinlottery 报名</p>
             </div>
 
             <!-- 描述 -->
             <div class="space-y-2 sm:col-span-2">
                 <label class="text-sm font-medium">描述</label>
-                <textarea name="description" 
+                <textarea name="description" maxlength="500"
                           rows="3"
                           required
                           class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{$lottery.description}</textarea>
@@ -65,7 +65,7 @@
         <div class="space-y-4">
             <div class="flex justify-between items-center">
                 <label class="text-sm font-medium">奖品列表</label>
-                <button type="button" 
+                <button type="button"
                         onclick="addPrize()"
                         class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
                     添加奖品
@@ -77,7 +77,7 @@
         </div>
 
         <div class="flex justify-end space-x-4">
-            <button type="submit" 
+            <button type="submit"
                     class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
                 保存修改
             </button>
@@ -85,144 +85,6 @@
     </form>
 </div>
 
-<script>
-function addPrize(prizeData = null) {
-    const container = document.getElementById('prizes-container');
-    const prizeCount = container.children.length;
-    
-    const prizeHtml = `
-        <div class="prize-item space-y-4 p-4 bg-white/5 rounded-lg">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">奖品名称</label>
-                    <input type="text" 
-                           name="prizes[${prizeCount}][name]" 
-                           required
-                           value="${prizeData ? prizeData.name : ''}"
-                           class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                </div>
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">奖品数量</label>
-                    <div class="flex gap-2">
-                        <input type="number" 
-                               name="prizes[${prizeCount}][count]" 
-                               required
-                               min="1"
-                               value="${prizeData ? prizeData.count : '1'}"
-                               onchange="updatePrizeContents(this)"
-                               class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        <button type="button" 
-                                onclick="removePrize(this)"
-                                class="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
-                            删除
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="prize-contents space-y-2">
-                <label class="text-sm font-medium">奖品内容</label>
-                ${prizeData ? prizeData.contents.map((content, index) => `
-                    <div class="space-y-2">
-                        <input type="text" 
-                               name="prizes[${prizeCount}][contents][]" 
-                               required
-                               value="${content}"
-                               placeholder="奖品内容 #${index + 1}"
-                               class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    </div>
-                `).join('') : `
-                    <div class="space-y-2">
-                        <input type="text" 
-                               name="prizes[${prizeCount}][contents][]" 
-                               required
-                               placeholder="奖品内容 #1"
-                               class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    </div>
-                `}
-            </div>
-        </div>
-    `;
-    
-    container.insertAdjacentHTML('beforeend', prizeHtml);
-}
-
-function removePrize(obj) {
-    $(obj).closest('.prize-item').remove();
-}
-
-// 页面加载时加载现有奖品
-document.addEventListener('DOMContentLoaded', function() {
-    const prizes = {$lottery.prizes|json_encode|raw};
-    if (prizes && prizes.length > 0) {
-        prizes.forEach(prize => addPrize(prize));
-    } else {
-        addPrize();
-    }
-    
-    // 设置日期时间选择器的最小值为当前时间
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    document.getElementById('drawTime').min = now.toISOString().slice(0,16);
-});
-
-// 表单提交处理
-$('#lotteryForm').submit(function(e) {
-    e.preventDefault();
-    
-    if ($('.prize-item').length === 0) {
-        rStatusMessage.error('请至少添加一个奖品');
-        return;
-    }
-    
-    // 获取表单数据
-    let formData = new FormData(this);
-    
-    // 转换日期时间格式为Y-m-d H:i:s格式
-    const drawTimeInput = document.getElementById('drawTime');
-    const date = new Date(drawTimeInput.value);
-    const drawTime = date.getFullYear() + '-' + 
-                    String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                    String(date.getDate()).padStart(2, '0') + ' ' +
-                    String(date.getHours()).padStart(2, '0') + ':' +
-                    String(date.getMinutes()).padStart(2, '0') + ':00';
-    
-    // 处理奖品数据
-    const prizes = [];
-    const prizeItems = document.querySelectorAll('.prize-item');
-    prizeItems.forEach((item, index) => {
-        const name = item.querySelector('input[name^="prizes["][name$="[name]"]').value;
-        const count = parseInt(item.querySelector('input[name^="prizes["][name$="[count]"]').value);
-        const contents = Array.from(item.querySelectorAll('input[name^="prizes["][name$="[contents][]"]'))
-            .map(input => input.value);
-        
-        prizes.push({
-            name: name,
-            count: count,
-            contents: contents
-        });
-    });
-    
-    // 构建提交数据
-    const data = {
-        id: formData.get('id'),
-        title: formData.get('title'),
-        description: formData.get('description'),
-        keywords: formData.get('keywords'),
-        drawTime: drawTime,
-        chatId: formData.get('chatId'),
-        prizes: JSON.stringify(prizes)
-    };
-    
-    $.post("{:url('/admin/editLottery')}", data, function(res) {
-        if (res.code === 200) {
-            rStatusMessage.success(res.msg);
-            setTimeout(function() {
-                window.location.href = "{:url('/admin/lotteryList')}";
-            }, 1000);
-        } else {
-            rStatusMessage.error(res.msg);
-        }
-    });
-});
-</script>
-{/block} 
+<script type="application/json" id="lottery-prizes">{$lottery.prizes|json_encode=15|raw}</script>
+<script src="/static/media/lottery-form.js" defer></script>
+{/block}

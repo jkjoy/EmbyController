@@ -168,7 +168,7 @@ class SystemSettings
             $updates[$key] = self::normalize($value, $field);
         }
         $values = array_replace($values, $updates);
-        if ($values['signInMinAmount'] > $values['signInMaxAmount']) {
+        if ($values['signInMaxAmount'] > 0 && $values['signInMinAmount'] > $values['signInMaxAmount']) {
             throw new InvalidArgumentException('签到最小金额不能大于最大金额');
         }
         Db::transaction(function () use ($updates, $fields) {
@@ -262,6 +262,9 @@ class SystemSettings
             return $result;
         }
         if ($type === 'int' || $type === 'decimal') {
+            if (isset($field['precision']) && !preg_match('/^\d+(?:\.\d{1,' . $field['precision'] . '})?$/', (string) $value)) {
+                $error('最多允许 ' . $field['precision'] . ' 位小数');
+            }
             $result = $type === 'int' ? filter_var($value, FILTER_VALIDATE_INT) : (is_numeric($value) ? (float) $value : false);
             if ($result === false || !is_finite((float) $result) || (isset($field['min']) && $result < $field['min']) || (isset($field['max']) && $result > $field['max'])) {
                 $error('数值超出允许范围或格式不正确');
@@ -280,6 +283,14 @@ class SystemSettings
         }
         if ($value !== '' && $type === 'url' && !self::httpUrl($value)) {
             $error('需要完整的 HTTP/HTTPS 地址');
+        }
+        if ($field['key'] === 'appHost' && $value !== '') {
+            $value = preg_replace('~/media/?$~i', '', rtrim($value, '/'));
+            $parts = parse_url($value);
+            if (!empty($parts['path']) || isset($parts['query']) || isset($parts['fragment'])
+                || isset($parts['user']) || isset($parts['pass'])) {
+                $error('请填写网站根地址，不带路径、查询参数或账号密码');
+            }
         }
         if ($value !== '' && $type === 'asset' && !self::httpUrl($value) && !preg_match('~^/(?!/)[^\x00-\x20\\\\]*$~', $value)) {
             $error('需要 HTTP/HTTPS 图片地址或以 / 开头的站内路径');

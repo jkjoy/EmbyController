@@ -4,7 +4,6 @@ namespace app\api\controller;
 
 use app\api\model\EmbyUserModel;
 use app\api\model\LotteryModel;
-use app\api\model\LotteryParticipantModel;
 use app\api\model\MediaHistoryModel;
 use app\api\model\TelegramModel;
 use app\api\model\UserModel;
@@ -158,37 +157,13 @@ class Telegram extends BaseController
                 return json(['ok' => true]);
             }
 
-            $commonds = [];
+            $parsed = $this->parseBotText((string) ($tgMsg['message']['text'] ?? $sendInMsg), $tgMsg['message']['entities'] ?? []);
+            if ($parsed['foreignCommand']) return json(['ok' => true]);
+            $commonds = $parsed['commands'];
             $replyMsg = '';
-            $atFlag = false;
-            $cmdFlag = false;
-
-            if (isset($tgMsg['message']['entities'])) {
-                $entities = $tgMsg['message']['entities'];
-                usort($entities, function ($a, $b) {
-                    return $b['offset'] - $a['offset'];
-                });
-                foreach ($entities as $entity) {
-                    if ($entity['type'] == 'bot_command') {
-                        $cmdFlag = true;
-                        $command = substr($sendInMsg, $entity['offset'], $entity['length']);
-                        // 处理带有@username的命令
-                        $commandParts = explode('@', $command);
-                        if (count($commandParts) > 1 && $commandParts[1] == 'randallanjie_bot') {
-                            $atFlag = true;
-                        }
-                        $commonds[] = $commandParts[0];  // 只保留命令部分
-                        $sendInMsg = substr($sendInMsg, 0, $entity['offset']) . substr($sendInMsg, $entity['offset'] + $entity['length']);
-                    } else if ($entity['type'] == 'mention') {
-                        $mention = substr($tgMsg['message']['text'], $entity['offset'], $entity['length']);
-                        $sendInMsg = substr($sendInMsg, 0, $entity['offset']) . substr($sendInMsg, $entity['offset'] + $entity['length']);
-                        if ($mention == '@randallanjie_bot') {  // 更新为您的机器人用户名
-                            $atFlag = true;
-                        }
-                    }
-                }
-            }
-            $sendInMsg = trim(preg_replace('/\s(?=\s)/', '', $sendInMsg));
+            $atFlag = $parsed['addressed'];
+            $cmdFlag = !empty($commonds);
+            $sendInMsg = $parsed['text'];
             $sendInMsgList = explode(' ', $sendInMsg);
             $useAiReplyFlag = false;
             if (isset($tgMsg['message']['chat']['type']) && $tgMsg['message']['chat']['type'] == 'private') {
@@ -396,114 +371,8 @@ class Telegram extends BaseController
                                 1
                             );
 
-                        } else if ($cmd == '/startlottery') {
-                            $telegramModel = new TelegramModel();
-                            $user = $telegramModel
-                                ->where('telegramId', $tgMsg['message']['from']['id'])
-                                ->join('rc_user', 'rc_user.id = rc_telegram_user.userId')
-                                ->field('rc_telegram_user.*, rc_user.authority, rc_user.nickName, rc_user.userName, rc_user.rCoin, rc_user.userInfo as userInfoFromUser')
-                                ->find();
-                            if (($tgMsg['message']['from']['id'] == Config::get('telegram.adminId')) || ($user && $user['authority'] == 0)) {
-                                $lotteryModel = new LotteryModel();
-                                $lottery = $lotteryModel
-                                    ->where('chatId', $this->chat_id)
-                                    ->where('status', 1)
-                                    ->find();
-                                if ($lottery) {
-                                    $replyMsg = '当前已有进行中的抽奖：' . $lottery['title'] . '，请先结束当前抽奖';
-                                } else {
-                                    $lottery = $lotteryModel
-                                        ->where('status', 0)
-                                        ->find();
-                                    if ($lottery) {
-                                        $lottery->chatId = $this->chat_id;
-                                        $lottery->status = 1;
-                                        $lottery->save();
-                                        $replyMsg = '抽奖已开始' . PHP_EOL;
-                                        $replyMsg .= '当前抽奖：' . $lottery['title'] . PHP_EOL;
-                                        $replyMsg .= '抽奖时间：' . $lottery['drawTime'] . PHP_EOL;
-                                        $replyMsg .= '抽奖关键词：<code>' . $lottery['keywords'] . '</code>' . PHP_EOL;
-                                        $replyMsg .= '抽奖奖品：' . PHP_EOL;
-
-                                        $prizes = is_array($lottery['prizes']) ? $lottery['prizes'] : json_decode($lottery['prizes'], true);
-                                        if ($prizes) {
-                                            foreach ($prizes as $prize) {
-                                                $replyMsg .= $prize['name'] . '：' . $prize['count'] . '份' . PHP_EOL;
-                                            }
-                                        }
-
-                                        $replyMsg .= '抽奖详情：' . $lottery['description'] . PHP_EOL;
-                                    } else {
-                                        $replyMsg = '当前没有未开始的抽奖';
-                                    }
-                                }
-                            } else {
-                                $replyMsg = '您没有权限使用此命令';
-                            }
-                        } else if ($cmd == '/lottery') {
-                            $lotteryModel = new LotteryModel();
-                            $lottery = $lotteryModel
-                                ->where('chatId', $this->chat_id)
-                                ->where('status', 1)
-                                ->find();
-                            if ($lottery) {
-                                $replyMsg = '当前抽奖：' . $lottery['title'] . PHP_EOL;
-                                $lotteryParticipantsModel = new LotteryParticipantModel();
-                                $participantsCount = $lotteryParticipantsModel
-                                    ->where('lotteryId', $lottery['id'])
-                                    ->count();
-                                $replyMsg .= '当前抽奖人数：' . $participantsCount . PHP_EOL;
-                                $replyMsg .= '抽奖时间：' . $lottery['drawTime'] . PHP_EOL;
-                                $replyMsg .= '抽奖关键词：<code>' . $lottery['keywords'] . '</code>' . PHP_EOL;
-                                $replyMsg .= '抽奖奖品：' . PHP_EOL;
-
-                                $prizes = is_array($lottery['prizes']) ? $lottery['prizes'] : json_decode($lottery['prizes'], true);
-                                if ($prizes) {
-                                    foreach ($prizes as $prize) {
-                                        $replyMsg .= $prize['name'] . '：' . $prize['count'] . '份' . PHP_EOL;
-                                    }
-                                }
-                                $replyMsg .= '抽奖详情：' . $lottery['description'] . PHP_EOL;
-                            } else {
-                                $replyMsg = '当前没有进行中的抽奖';
-                            }
-                        } else if ($cmd == '/exitlottery') {
-                            $lotteryModel = new LotteryModel();
-                            $lottery = $lotteryModel
-                                ->where('chatId', $this->chat_id)
-                                ->where('status', 1)
-                                ->find();
-                            if ($lottery) {
-                                $lotteryParticipantsModel = new LotteryParticipantModel();
-                                $participant = $lotteryParticipantsModel
-                                    ->where('lotteryId', $lottery['id'])
-                                    ->where('telegramId', $tgMsg['message']['from']['id'])
-                                    ->where('status', 0)  // 只能退出未开奖的参与记录
-                                    ->find();
-
-                                if ($participant) {
-                                    // 删除参与记录
-                                    $lotteryParticipantsModel
-                                        ->where('id', $participant['id'])
-                                        ->delete();
-
-                                    $this->addMessageToDeleteQueue(
-                                        $this->chat_id,
-                                        $this->message_id,
-                                        1
-                                    );
-                                    $replyMsg = '您已成功退出抽奖「' . $lottery['title'] . '」';
-                                } else {
-                                    $this->addMessageToDeleteQueue(
-                                        $this->chat_id,
-                                        $this->message_id,
-                                        1
-                                    );
-                                    $replyMsg = '您未参与当前进行中的抽奖';
-                                }
-                            } else {
-                                $replyMsg = '当前没有进行中的抽奖';
-                            }
+                        } else if (in_array($cmd, ['/startlottery', '/lottery', '/joinlottery', '/exitlottery'], true)) {
+                            $replyMsg = $this->handleLotteryCommand($cmd, (string) $tgMsg['message']['from']['id'], $sendInMsg);
                         } else if ($cmd == '/startbet') {
                             $telegramModel = new TelegramModel();
                             $user = $telegramModel
@@ -685,83 +554,8 @@ class Telegram extends BaseController
                             ->where('chatId', $this->chat_id)
                             ->where('status', 1)
                             ->find();
-                        if ($lottery && $lottery['keywords'] == $sendInMsg) {
-                            // 判断是否绑定了账号
-                            $telegramModel = new TelegramModel();
-                            $user = $telegramModel
-                                ->where('telegramId', $tgMsg['message']['from']['id'])
-                                ->join('rc_user', 'rc_user.id = rc_telegram_user.userId')
-                                ->field('rc_telegram_user.*, rc_user.nickName, rc_user.userName, rc_user.rCoin, rc_user.authority, rc_user.userInfo as userInfoFromUser')
-                                ->find();
-                            if (!$user) {
-                                $replyMsg = '您还没有绑定管理站账号，请先前往网页注册，进入个人页面最下面链接Telegram账号进行绑定';
-                            } else {
-                                $lotteryParticipantsModel = new LotteryParticipantModel();
-                                $participants = $lotteryParticipantsModel
-                                    ->where('lotteryId', $lottery['id'])
-                                    ->where('telegramId', $tgMsg['message']['from']['id'])
-                                    ->find();
-                                if ($participants) {
-                                    $replyMsg = '您已经参与过此次抽奖';
-                                } else {
-                                    $canParticipate = true;
-                                    $description = $lottery['description'];
-                                    $lockTime = 0;
-                                    $lockCount = 0;
-                                    $lockTimePattern = '/「LockTime-(\d+)h-(\d+)」/';
-                                    if (preg_match($lockTimePattern, $description, $matches)) {
-                                        $lockTime = intval($matches[1]);
-                                        $lockCount = intval($matches[2]);
-                                    }
-                                    if ($lockTime > 0 && $lockCount > 0) {
-                                        $lockTime = $lockTime * 3600;
-                                        $lockTime = time() - $lockTime;
-                                        $mediaHistoryModel = new MediaHistoryModel();
-                                        $historyList = $mediaHistoryModel
-                                            ->where('userId', $user['userId'])
-                                            // 根据时间从旧到新排序
-                                            ->order('createdAt', 'asc')
-                                            // 选出$lockCount条记录
-                                            ->limit($lockCount)
-                                            ->select();
-                                        $historyCount = 0;
-                                        foreach ($historyList as $history) {
-                                            if ($history['createdAt'] !== null && strtotime($history['createdAt']) < $lockTime) {
-                                                $historyCount++;
-                                            }
-                                            if ($historyCount >= $lockCount) {
-                                                break;
-                                            }
-                                        }
-                                        if ($historyCount < $lockCount) {
-                                            $replyMsg = '您在的规定时间内的观影次数为' . $historyCount . '次，未达到要求，无法参与抽奖';
-                                            $canParticipate = false;
-                                        }
-                                    }
-
-                                    $lockExp = 0;
-                                    $lockExpPattern = '/「LockExp-(\d+)」/';
-                                    if (preg_match($lockExpPattern, $description, $matches)) {
-                                        $lockExp = intval($matches[1]);
-                                    }
-
-                                    if ($lockExp > 0) {
-                                        if ($user['authority'] < $lockExp && $user['authority'] != 0) {
-                                            $replyMsg = '您的Exp为' . $user['authority'] . '，未达到要求，无法参与抽奖';
-                                            $canParticipate = false;
-                                        }
-                                    }
-
-                                    if ($canParticipate) {
-                                        $lotteryParticipantsModel->save([
-                                            'lotteryId' => $lottery['id'],
-                                            'telegramId' => $tgMsg['message']['from']['id'],
-                                            'status' => 0,
-                                        ]);
-                                        $replyMsg = '参与成功';
-                                    }
-                                }
-                            }
+                        if ($lottery && trim((string) $lottery['keywords']) !== '' && $lottery['keywords'] == $sendInMsg) {
+                            $replyMsg = $this->handleLotteryCommand('/joinlottery', (string) $tgMsg['message']['from']['id'], (string) $lottery['id']);
                             $this->autoDeleteMinutes = 1;
                             $this->message_text = $replyMsg;
                             $this->replayMessage($this->message_text);
@@ -909,6 +703,98 @@ class Telegram extends BaseController
     }
 
 
+    private function parseBotText(string $text, array $entities): array
+    {
+        $username = ltrim((string) Config::get('telegram.botConfig.bots.randallanjie_bot.username', ''), '@');
+        $utf16 = mb_convert_encoding($text, 'UTF-16LE', 'UTF-8');
+        $commands = [];
+        $addressed = false;
+        $foreignCommand = false;
+        usort($entities, fn($a, $b) => $b['offset'] <=> $a['offset']);
+        foreach ($entities as $entity) {
+            $offset = (int) ($entity['offset'] ?? 0) * 2;
+            $length = (int) ($entity['length'] ?? 0) * 2;
+            $value = mb_convert_encoding(substr($utf16, $offset, $length), 'UTF-8', 'UTF-16LE');
+            $remove = false;
+            if (($entity['type'] ?? '') === 'bot_command') {
+                $parts = explode('@', $value, 2);
+                if (isset($parts[1]) && strcasecmp($parts[1], $username) !== 0) {
+                    $foreignCommand = true;
+                    continue;
+                }
+                array_unshift($commands, strtolower($parts[0]));
+                $addressed = $addressed || isset($parts[1]);
+                $remove = true;
+            } elseif (($entity['type'] ?? '') === 'mention' && strcasecmp($value, '@' . $username) === 0) {
+                $addressed = true;
+                $remove = true;
+            }
+            if ($remove) $utf16 = substr($utf16, 0, $offset) . substr($utf16, $offset + $length);
+        }
+        return ['commands' => $commands, 'text' => $this->cleanText(mb_convert_encoding($utf16, 'UTF-8', 'UTF-16LE')),
+            'addressed' => $addressed, 'foreignCommand' => $foreignCommand];
+    }
+
+    private function handleLotteryCommand(string $command, string $telegramId, string $arguments = ''): string
+    {
+        try {
+            if ($command === '/startlottery') {
+                $administrator = Db::name('telegram_user')->alias('tg')->join('user u', 'u.id = tg.userId')
+                    ->where('tg.telegramId', $telegramId)->where('tg.type', 1)->where('u.authority', 0)->find();
+                if ($telegramId !== (string) Config::get('telegram.adminId') && !$administrator) return '您没有权限使用此命令';
+                $lottery = \app\service\LotteryService::startNext((string) $this->chat_id);
+                return '抽奖已开始' . PHP_EOL . $this->lotteryMessage($lottery);
+            }
+            $arguments = trim($arguments);
+            if ($arguments !== '' && !preg_match('/^[1-9][0-9]*$/D', $arguments)) {
+                return '请输入正确格式：<code>' . $command . ' 抽奖ID</code>，省略ID操作当前群抽奖';
+            }
+            // 无论是否指定ID，都只允许操作当前群的抽奖。
+            $query = Db::name('lottery')->where('chatId', (string) $this->chat_id)->where('status', 1);
+            if ($arguments !== '') $query->where('id', (int) $arguments);
+            $lottery = $query->order('drawTime')->order('id')->find();
+            if (!$lottery) return '当前群没有进行中的抽奖';
+            if ($command === '/lottery') return $this->lotteryMessage($lottery);
+            if ($command === '/joinlottery') {
+                \app\service\LotteryService::join((int) $lottery['id'], $telegramId, (string) $this->chat_id);
+                return '参与抽奖「' . $this->telegramHtml($lottery['title']) . '」成功';
+            }
+            \app\service\LotteryService::exit((int) $lottery['id'], $telegramId, (string) $this->chat_id);
+            return '您已成功退出抽奖「' . $this->telegramHtml($lottery['title']) . '」';
+        } catch (\DomainException $error) {
+            return $this->telegramHtml($error->getMessage());
+        } catch (\Throwable $error) {
+            \think\facade\Log::error('抽奖命令处理失败：' . $error->getMessage());
+            return '抽奖操作失败，请稍后重试';
+        }
+    }
+
+    private function lotteryMessage(array $lottery): string
+    {
+        $message = '当前抽奖：' . $this->telegramHtml($lottery['title']) . PHP_EOL;
+        $message .= '当前抽奖人数：' . Db::name('lottery_participant')->where('lotteryId', $lottery['id'])->count() . PHP_EOL;
+        $message .= '开奖时间：' . $this->telegramHtml($lottery['drawTime']) . PHP_EOL;
+        if (strtotime($lottery['drawTime']) <= time()) $message .= '报名已截止，正在等待开奖' . PHP_EOL;
+        else {
+            $message .= '报名命令：<code>/joinlottery ' . (int) $lottery['id'] . '</code>' . PHP_EOL;
+            if (trim((string) $lottery['keywords']) !== '') {
+                $message .= '报名关键词：<code>' . $this->telegramHtml($lottery['keywords']) . '</code>' . PHP_EOL;
+            }
+        }
+        $message .= '抽奖奖品：' . PHP_EOL;
+        $prizes = is_array($lottery['prizes']) ? $lottery['prizes'] : json_decode($lottery['prizes'], true);
+        foreach (array_slice($prizes ?: [], 0, 10) as $prize) {
+            $message .= $this->telegramHtml((string) $prize['name']) . '：' . (int) $prize['count'] . '份' . PHP_EOL;
+        }
+        if (count($prizes ?: []) > 10) $message .= '另有' . (count($prizes) - 10) . '个奖项' . PHP_EOL;
+        return $message . '抽奖详情：' . $this->telegramHtml($lottery['description']);
+    }
+
+    private function telegramHtml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
     private function replayMessage($result)
     {
         $telegram = new Api(Config::get('telegram.botConfig.bots.randallanjie_bot.token'));
@@ -973,7 +859,7 @@ class Telegram extends BaseController
         if ($user) {
             $message .= '尊敬的用户 <strong>' . ($user['nickName']??$user['userName']) . '</strong> ';
         }
-        $message .= '您好，欢迎使用 @randallanjie_bot' . PHP_EOL;
+        $message .= '您好，欢迎使用 @' . $this->telegramHtml(ltrim((string) Config::get('telegram.botConfig.bots.randallanjie_bot.username'), '@')) . PHP_EOL;
         if ($telegramId != $this->chat_id) {
 //            $message .= '当前群组ID是：<code>' . $this->chat_id . '</code>' . PHP_EOL;
         } else {
@@ -1085,46 +971,12 @@ class Telegram extends BaseController
         if ($siteHost === '') {
             return '请先在后台系统设置中配置网站地址';
         }
-        $telegramModel = new TelegramModel();
-        $telegramId = $id;
-        $tgUser = $telegramModel->where('telegramId', $telegramId)->find();
-        if ($tgUser) {
-
-            $sysConfigModel = new SysConfigModel();
-            $signInMaxAmount = $sysConfigModel->where('key', 'signInMaxAmount')->find();
-            if ($signInMaxAmount) {
-                $signInMaxAmount = $signInMaxAmount['value'];
-            } else {
-                $signInMaxAmount = 0;
-            }
-            $signInMinAmount = $sysConfigModel->where('key', 'signInMinAmount')->find();
-            if ($signInMinAmount) {
-                $signInMinAmount = $signInMinAmount['value'];
-            } else {
-                $signInMinAmount = 0;
-            }
-
-            if (!($signInMaxAmount > 0 && $signInMinAmount > 0 && $signInMaxAmount >= $signInMinAmount)) {
-                return '签到已关闭';
-            } else {
-                $userModel = new UserModel();
-                $user = $userModel->where('id', $tgUser['userId'])->find();
-                $userInfoArray = json_decode(json_encode($user['userInfo']), true);
-                if ((isset($userInfoArray['lastSignTime']) && $userInfoArray['lastSignTime'] != date('Y-m-d')) || !isset($userInfoArray['lastSignTime'])) {
-                    // 生成两个随机字符串
-                    $randStr = substr(md5(time()), 0, 8);
-                    $signKey = substr(md5(time()), 8, 8);
-                    Cache::set('get_sign_' . $signKey, $randStr, 300);
-                    Cache::set('post_signkey_' . $randStr, $user['id'], 300);
-                    $signUrl = $siteHost . '/index/account/sign?signkey=' . rawurlencode($signKey);
-                    return '请点击链接签到：<a href="' . htmlspecialchars($signUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">点击签到</a>';
-                } else {
-                    return '您今天已签到～';
-                }
-            }
-        } else {
-            return '请先绑定账号';
-        }
+        $tgUser = (new TelegramModel())->where('telegramId', $id)->find();
+        if (!$tgUser) return '请先绑定账号';
+        $result = \app\service\SignInService::issueToken((int) $tgUser['userId']);
+        if ($result['code'] !== 200) return $result['message'];
+        $signUrl = $siteHost . '/account/sign?signkey=' . rawurlencode($result['token']);
+        return '请点击链接签到（5 分钟内有效）：<a href="' . htmlspecialchars($signUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">点击签到</a>';
     }
 
     public function sendMsgToGroup()

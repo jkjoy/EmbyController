@@ -53,10 +53,12 @@
                             <span class="px-2 py-1 bg-red-500/20 text-red-300 rounded-full text-sm">已禁用</span>
                             {elseif $vo.status eq 2}
                             <span class="px-2 py-1 bg-gray-500/20 text-gray-300 rounded-full text-sm">已结束</span>
+                            {elseif $vo.status eq 3}
+                            <span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-sm">开奖中</span>
                             {/if}
                         </td>
                         <td class="py-3 px-4 space-x-2">
-                            {if $vo.status neq 2}
+                            {if $vo.status eq 0 or $vo.status eq 1 or $vo.status eq -1}
                             <a href="{:url('/admin/editLottery')}?id={$vo.id}"
                                class="text-blue-400 hover:text-blue-300">
                                 编辑

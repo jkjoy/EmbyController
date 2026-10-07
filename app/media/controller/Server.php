@@ -79,7 +79,7 @@ class Server extends BaseController
         $userFromDatabase['password'] = null;
         $embyUserModel = new EmbyUserModel();
         $embyUserFromDatabase = $embyUserModel->where('userId', Session::get('r_user')->id)->find();
-        $userInfoArray = json_decode(json_encode($embyUserFromDatabase->userInfo), true);
+        $userInfoArray = $embyUserFromDatabase ? json_decode(json_encode($embyUserFromDatabase->userInfo), true) : [];
         if (isset($userInfoArray['autoRenew'])) {
             $autoRenew = $userInfoArray['autoRenew'];
         } else {
@@ -1067,57 +1067,37 @@ class Server extends BaseController
         if (Request::isPost()) {
             $data = Request::post();
             // 检测$data['money']是否为数字，并且最多有两位小数
-            if (!preg_match('/^\d+(\.\d{1,2})?$/', $data['money']) || $data['money'] <= 0) {
+            if (!isset($data['money']) || !is_scalar($data['money']) || !preg_match('/^\d+(\.\d{1,2})?$/', (string) $data['money']) || $data['money'] <= 0) {
                 return json([
                     'code' => 400,
                     'message' => '请输入正确的金额'
                 ]);
             }
-            $payMethod = 'alipay';
-            $chanel = 'epay';
-            if (isset($data['method'])) {
-                if ($data['method'] == 'usdt' || $data['method'] == 'trx') {
-                    $chanel = 'usdt';
-                } else {
-                    $availablePayMethod = Config::get('payment.epay.availablePayment');
-                    if (in_array($data['method'], $availablePayMethod)) {
-                        $payMethod = $data['method'];
-                    }
-                }
+            $payMethod = $data['method'] ?? 'alipay';
+            $availablePayMethod = Config::get('payment.epay.availablePayment', []);
+            if (!Config::get('payment.epay.enable') || !is_string($payMethod)
+                || in_array($payMethod, ['usdt', 'trx'], true) || !in_array($payMethod, $availablePayMethod, true)) {
+                return json(['code' => 400, 'message' => '此支付方式尚未启用，请使用可用的充值或兑换方式']);
             }
             $tradeNo = time() . random_int(1000, 9999);
             $payCompleteKey = generateRandomString();
 
             $realIp = getRealIp();
 
-            $url = '';
-            $sendData = [];
-            if ($chanel == 'epay') {
-                $url = Config::get('payment.epay.urlBase') . 'mapi.php';
-                $sendData = [
-                    'pid' => Config::get('payment.epay.id'),
-                    'type' => $payMethod,
-                    'out_trade_no' => $tradeNo,
-                    'notify_url' => Config::get('app.app_host') . '/server/resolvePayment?key=' . $payCompleteKey,
-                    'return_url' => Config::get('app.app_host') . '/server/account',
-                    'name' => currencyName() . '充值',
-                    'money' => $data['money'],
-                    'clientip' => $realIp,
-                    'sign' => '',
-                    'sign_type' => 'MD5'
-                ];
-                $sendData['sign'] = getPaySign($sendData);
-            } else if ($chanel == 'usdt') {
-                $url = Config::get('payment.usdt.urlBase') . 'api/v1/order/create-transaction';
-                $sendData = [
-                    'trade_type' => $data['method']=='usdt'?'usdt.trc20':'tron.trx',
-                    'order_id' => $tradeNo,
-                    'amount' => $data['money'],
-                    'signature' => '',
-                    'notify_url' => Config::get('app.app_host') . '/server/resolveUsdtPayment?key=' . $payCompleteKey,
-                    'redirect_url' => Config::get('app.app_host') . '/server/account'
-                ];
-            }
+            $url = Config::get('payment.epay.urlBase') . 'mapi.php';
+            $sendData = [
+                'pid' => Config::get('payment.epay.id'),
+                'type' => $payMethod,
+                'out_trade_no' => $tradeNo,
+                'notify_url' => Config::get('app.app_host') . '/server/resolvePayment?key=' . $payCompleteKey,
+                'return_url' => Config::get('app.app_host') . '/server/account',
+                'name' => currencyName() . '充值',
+                'money' => $data['money'],
+                'clientip' => $realIp,
+                'sign' => '',
+                'sign_type' => 'MD5'
+            ];
+            $sendData['sign'] = getPaySign($sendData);
             $respond = getHttpResponse($url, $sendData);
 
             if ($respond == '' || (isset(json_decode($respond, true)['code']) && json_decode($respond, true)['code'] == -1)) {
