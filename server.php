@@ -1203,7 +1203,7 @@ function runCrontab() {
     }
     // 去掉末尾的斜杠
     $host = rtrim($host, '/');
-    $url = $host . '/media/server/crontab?crontabkey=' . rawurlencode($key);
+    $url = $host . '/server/crontab?crontabkey=' . rawurlencode($key);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 60);

@@ -128,7 +128,7 @@ class Media extends BaseController
 
                                                 if ($sendFlag) {
                                                     $Email = $user['email'];
-                                                    $SiteUrl = Config::get('app.app_host').'/media';
+                                                    $SiteUrl = Config::get('app.app_host').'/';
 
                                                     $sysConfigModel = new \app\media\model\SysConfigModel();
                                                     $sysnotificiations = $sysConfigModel->where('key', 'sysnotificiations')->find();
@@ -261,7 +261,7 @@ class Media extends BaseController
 
                                                 if ($sendFlag) {
                                                     $Email = $user['email'];
-                                                    $SiteUrl = Config::get('app.app_host').'/media';
+                                                    $SiteUrl = Config::get('app.app_host').'/';
 
                                                     $sysConfigModel = new \app\media\model\SysConfigModel();
                                                     $sysnotificiations = $sysConfigModel->where('key', 'sysnotificiations')->find();

@@ -149,7 +149,7 @@
         button.prop('disabled', true).text('兑换中…');
         $('#redeem-code-result').text('');
         startMainLoading();
-        $.post('/media/server/redeemCode', {
+        $.post('/server/redeemCode', {
             code: codeFromUser
         }, function (data) {
             if (data.code === 200) {
@@ -184,7 +184,7 @@
             stopMainLoading();
             rStatusMessage.error('请输入正确的金额');
         } else {
-            $.post('/media/server/pay', {
+            $.post('/server/pay', {
                 money: moneyFromUser,
                 method: paymentMethod
             }, function (data) {

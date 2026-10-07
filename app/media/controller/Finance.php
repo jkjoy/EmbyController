@@ -23,7 +23,7 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         return view();
     }
@@ -33,7 +33,7 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         $rate = 1;
@@ -59,7 +59,7 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         return view();
     }
@@ -69,7 +69,7 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         return view();
     }
@@ -79,17 +79,17 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isGet()) {
             $payRecordModel = new PayRecordModel();
             $data = Request::param();
             $payRecord = $payRecordModel->where('id', $data['id'])->find();
             if ($payRecord == null) {
-                return redirect('/media/finance/payRecord');
+                return redirect('/finance/payRecord');
             }
             if ($payRecord['userId'] != Session::get('r_user')->id) {
-                return redirect('/media/finance/payRecord');
+                return redirect('/finance/payRecord');
             }
             View::assign('payRecord', $payRecord);
             return view();
@@ -101,7 +101,7 @@ class Finance extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $payRecordModel = new PayRecordModel();

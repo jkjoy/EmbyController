@@ -58,7 +58,7 @@ function businessRequest(think\App $app, array $data = []): void
     $_SERVER['REQUEST_METHOD'] = 'POST';
     $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
     $_SERVER['HTTP_HOST'] = 'sqlite.test';
-    $_SERVER['REQUEST_URI'] = '/media/user/getNotifications';
+    $_SERVER['REQUEST_URI'] = '/user/getNotifications';
     $_SERVER['SCRIPT_NAME'] = '/index.php';
     $request = app\Request::__make($app);
     $request->setMethod('POST');

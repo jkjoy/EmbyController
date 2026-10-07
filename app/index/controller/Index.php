@@ -9,7 +9,7 @@ class Index extends BaseController
 {
     public function index()
     {
-        return redirect('/media');
+        return redirect('/');
     }
 
     public function hello($name = 'ThinkPHP8')

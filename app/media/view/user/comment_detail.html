@@ -23,7 +23,7 @@
     <div class="flex flex-col md:flex-row gap-8">
         <div class="w-full md:w-[200px] lg:w-[240px]">
             <img
-                    src="/media/index/getPrimaryImg?id=0"
+                    src="/index/getPrimaryImg?id=0"
                     alt=""
                     class="w-full rounded-lg aspect-[2/3] object-cover zoom-img"
                     loading="lazy"
@@ -83,7 +83,7 @@
     var mediaId = 0;
 
     $.ajax({
-        url: '/media/index/getMetaData',
+        url: '/index/getMetaData',
         type: 'POST',
         data: {
             mediaId: '<?php echo $mediaId; ?>'
@@ -91,7 +91,7 @@
         success: function (data) {
             var metaData = data.mediaInfo;
 
-            $('#main').attr('src', '/media/index/getPrimaryImg?id=' + metaData['mediaMainId']);
+            $('#main').attr('src', '/index/getPrimaryImg?id=' + metaData['mediaMainId']);
 
             var metaHtml = '';
 
@@ -170,7 +170,7 @@
         const container = document.getElementById('comments-container');
         var pageComments = [];
         $.ajax({
-            url: '/media/user/getComments',
+            url: '/user/getComments',
             type: 'POST',
             data: {
                 mediaId: mediaId,
@@ -256,7 +256,7 @@
     function submitComment() {
         startMainLoading()
         $.ajax({
-            url: '/media/user/addComment',
+            url: '/user/addComment',
             type: 'POST',
             data: {
                 mediaId: mediaId,
@@ -280,7 +280,7 @@
         replyTo = commentId;
         startMainLoading()
         $.ajax({
-            url: '/media/user/getOneComment',
+            url: '/user/getOneComment',
             type: 'POST',
             data: {
                 id: commentId,

@@ -72,7 +72,7 @@ function profileRequest(think\App $app, string $action, array $data = [], string
     $_SERVER['SERVER_PORT'] = '80';
     $_SERVER['HTTP_USER_AGENT'] = 'Profile regression';
     $_SERVER['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest';
-    $_SERVER['REQUEST_URI'] = '/media/user/' . $action;
+    $_SERVER['REQUEST_URI'] = '/user/' . $action;
     $_SERVER['SCRIPT_NAME'] = '/index.php';
     $request = app\Request::__make($app);
     $request->setMethod($method)->setController('User')->setAction($action)->setHost('profile.test');
@@ -236,7 +236,7 @@ try {
     Session::set('m_embyId', 'fixture-emby');
     $result = profileCall($app, 'update', profilePayload(['password' => 'NewPass.123_-', 'confirmPassword' => 'NewPass.123_-', 'currentPassword' => 'OldPass_123']));
     $stored = Db::name('user')->where('id', 2)->find();
-    expectProfile($result['code'] === 200 && $result['requireLogin'] === true && $result['redirectUrl'] === '/media/user/login', 'Password update did not require fresh login');
+    expectProfile($result['code'] === 200 && $result['requireLogin'] === true && $result['redirectUrl'] === '/user/login', 'Password update did not require fresh login');
     expectProfile(password_verify('NewPass.123_-', $stored['password']) && !password_verify('OldPass_123', $stored['password']), 'Password update failed to hash or revoke old password');
     foreach (['r_user', 'wskey', 'm_embyId', 'profileToken'] as $key) expectProfile(!Session::has($key), 'Password change retained credential ' . $key);
     expectProfile((float) $stored['rCoin'] === 52.25 && (int) $stored['authority'] === 10 && Db::name('user')->where('id', 3)->find() === $before[2], 'Profile change modified financial/privilege/other-user fields');

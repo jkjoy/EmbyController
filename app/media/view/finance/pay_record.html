@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 加载账单列表
 function loadPayRecordList() {
-    fetch('/media/finance/getPayRecordList', {
+    fetch('/finance/getPayRecordList', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -73,7 +73,7 @@ function renderPayRecordList(list) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="py-3 px-4">
-                <a href="/media/finance/payRecordDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">${item.name}(#${item.id})</a>
+                <a href="/finance/payRecordDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">${item.name}(#${item.id})</a>
             </td>
             <td class="py-3 px-4">￥${item.money}</td>
             <td class="py-3 px-4">${item.createdAt}</td>

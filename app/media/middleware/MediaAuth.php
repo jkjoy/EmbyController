@@ -18,10 +18,10 @@ class MediaAuth
     public function handle($request, \Closure $next)
     {
         $url = $request->url(true);
-        $path = (string) parse_url($url, PHP_URL_PATH);
-        $isRedeemRequest = preg_match('~\A/media/server/redeemCode(?:\.html)?/?\z~i', $path) === 1;
-        $isProfileRequest = preg_match('~\A/media/user/update(?:\.html)?/?\z~i', $path) === 1
-            || (preg_match('~\A/media/user/sendVerifyCode(?:\.html)?/?\z~i', $path) === 1 && $request->post('action') === 'update');
+        $path = '/' . ltrim($request->pathinfo(), '/');
+        $isRedeemRequest = preg_match('~\A/server/redeemCode(?:\.html)?/?\z~i', $path) === 1;
+        $isProfileRequest = preg_match('~\A/user/update(?:\.html)?/?\z~i', $path) === 1
+            || (preg_match('~\A/user/sendVerifyCode(?:\.html)?/?\z~i', $path) === 1 && $request->post('action') === 'update');
         $requiresJsonAuth = $isRedeemRequest || $isProfileRequest;
         $authError = null;
         // 获取当前用户
@@ -50,44 +50,34 @@ class MediaAuth
         if ($authError !== null) {
             if ($requiresJsonAuth) return json($authError, $authError['code']);
             Session::set('jumpUrl', $url);
-            return redirect((string) url('/media/user/login'));
+            return redirect((string) url('/user/login'));
         }
         if (!$user && $requiresJsonAuth) return json(['code' => 401, 'message' => '请先登录'], 401);
 
-        // url 去掉域名部分
-        $url = str_replace('http://'.$_SERVER['HTTP_HOST'], '', $url);
-        $url = str_replace('https://'.$_SERVER['HTTP_HOST'], '', $url);
-
-        if ($url == '/media' || $url == '/media/') {
-            $url = '/media/index/index';
-        }
+        // 用实际路由路径校验，首页带查询参数时也允许匿名访问。
+        $path = preg_replace('~(?:\.html)?/?$~i', '', $path);
+        if ($path === '') $path = '/index/index';
 
         // 如果未登录且不是访问登录页面，则重定向到登录页面
         $allowList = [
-            '/media/user/login',
-            '/media/user/register',
-            '/media/user/forgot',
-            '/media/user/sendVerifyCode',
-            '/media/user/terms',
-            '/media/user/privacy',
-            '/media/index/index',
-            '/media/index/getPrimaryImg',
-            '/media/index/getLineStatus',
-            '/media/index/getLatestMedia',
-            '/media/server/crontab',
-            '/media/server/resolvePayment',
+            '/user/login',
+            '/user/register',
+            '/user/forgot',
+            '/user/sendVerifyCode',
+            '/user/terms',
+            '/user/privacy',
+            '/index/index',
+            '/index/getPrimaryImg',
+            '/index/getLineStatus',
+            '/index/getLatestMedia',
+            '/server/crontab',
+            '/server/resolvePayment',
         ];
 
-        $flag = false;
-        foreach ($allowList as $allow) {
-            if (strpos($url, $allow) !== false) {
-                $flag = true;
-                break;
-            }
-        }
+        $flag = in_array(strtolower($path), array_map('strtolower', $allowList), true);
         if ((empty($user)) && !$flag) {
             Session::set('jumpUrl', $request->url(true));
-            return redirect((string)url('/media/user/login'));
+            return redirect((string)url('/user/login'));
         }
 
         if ($user && $user['authority'] >= 0) {
@@ -123,7 +113,7 @@ class MediaAuth
      * @param array $header 发送的Header信息
      * @return Response
      */
-    protected function error($msg = '', string $url = null, $data = '', int $wait = 3, array $header = []): Response
+    protected function error($msg = '', ?string $url = null, $data = '', int $wait = 3, array $header = []): Response
     {
         if (is_null($url)) {
             $url = request()->isAjax() ? '' : 'javascript:history.back(-1);';

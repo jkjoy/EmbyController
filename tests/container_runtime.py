@@ -5,6 +5,7 @@ import html
 from html.parser import HTMLParser
 import http.cookiejar
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -106,7 +107,7 @@ def main(image):
 
             def ready():
                 try:
-                    return request(opener, origin, "/media/user/login")[0] == 200
+                    return request(opener, origin, "/user/login")[0] == 200
                 except (OSError, urllib.error.URLError):
                     return False
 
@@ -115,46 +116,51 @@ def main(image):
             return port, origin, opener
 
         port, origin, opener = start()
-        assert request(opener, origin, "/")[0] == 200, "Website root must be browsable"
+        for path in ["/", "/?entrypoint=query"]:
+            status, body, final_url = request(opener, origin, path)
+            assert status == 200 and final_url == origin + path and b'id="menuButton"' in body, "Website root must directly render the media home page"
+            assert re.search(rb'''["']/media(?:/|["'])''', body) is None, "Home page links must use root application routes"
+        status, body, _ = request(opener, origin, "/api/index/ping")
+        assert status == 200 and json.loads(body)["msg"] == "pong", "API route must remain available"
         status, body, _ = request(opener, origin, "/assets/index/css/layui.css")
         assert status == 200 and b"layui" in body, "Static resource was not served"
         for path in ["/.env", "/data/emby-controller.sqlite", "/router.php"]:
             assert request(opener, origin, path)[0] in (403, 404), "Private path was exposed: " + path
-        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": "MISSING"})
+        status, body, _ = request(opener, origin, "/server/redeemCode", {"code": "MISSING"})
         assert status == 401 and json.loads(body)["code"] == 401, "Anonymous redemption must return JSON 401"
-        status, body, final_url = request(opener, origin, "/media/user/login", {
+        status, body, final_url = request(opener, origin, "/user/login", {
             "username": "admin", "password": "A123456"
         })
-        assert status == 200 and "/media/user/login" not in final_url, "Administrator login/session failed"
+        assert status == 200 and "/user/login" not in final_url, "Administrator login/session failed"
         currency = '积分<&"'
-        status, body, _ = request(opener, origin, "/media/admin/setting", {
+        status, body, _ = request(opener, origin, "/admin/setting", {
             "siteName": "Direct Port Smoke", "currencyName": currency
         })
         assert status == 200 and json.loads(body)["code"] == 200, "Admin setting did not persist"
-        for path in ["/media/finance/user", "/media/admin/addExchangeCode"]:
+        for path in ["/finance/user", "/admin/addExchangeCode"]:
             status, body, _ = request(opener, origin, path)
             assert status == 200 and html.escape(currency).encode() in body, "Currency/template render failed: " + path
-        status, body, _ = request(opener, origin, "/media/server/redeemCode")
+        status, body, _ = request(opener, origin, "/server/redeemCode")
         assert json.loads(body)["code"] == 405, "GET must not redeem a code"
-        status, body, _ = request(opener, origin, "/media/admin/addExchangeCode", {
+        status, body, _ = request(opener, origin, "/admin/addExchangeCode", {
             "mode": "batch", "exchangeType": "4", "exchangeCount": "12.34", "generateCount": "2"
         })
         generated = json.loads(body)
         assert status == 200 and generated["code"] == 200, "Balance codes were not generated"
         codes = generated["data"]["codes"]
         assert len(codes) == 2 and len(set(codes)) == 2, "Batch codes must be unique"
-        status, body, _ = request(opener, origin, "/media/admin/exchangeCodeList")
+        status, body, _ = request(opener, origin, "/admin/exchangeCodeList")
         assert status == 200 and html.escape(currency).encode() in body, "Code list currency/template render failed"
-        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        status, body, _ = request(opener, origin, "/server/redeemCode", {"code": codes[0]})
         redeemed = json.loads(body)
         assert status == 200 and redeemed["code"] == 200 and redeemed["rCoin"] == "12.34", "Balance redemption failed"
         assert currency in redeemed["message"], "Redemption must use the configured currency"
-        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        status, body, _ = request(opener, origin, "/server/redeemCode", {"code": codes[0]})
         assert json.loads(body)["code"] == 400, "Code must only be redeemable once"
         assert websocket(port), "Same-port WebSocket upgrade failed"
         print("PASS: real HTTP/static/admin/session, currency, generation/single-use redemption and same-port WebSocket", flush=True)
 
-        status, body, _ = request(opener, origin, "/media/user/userconfig")
+        status, body, _ = request(opener, origin, "/user/userconfig")
         assert status == 200, "User settings did not render"
         token = profile_token(body)
         profile = {
@@ -162,27 +168,27 @@ def main(image):
             "password": "", "currentPassword": "incorrect", "confirmPassword": "",
             "profileToken": token,
         }
-        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        status, body, _ = request(opener, origin, "/user/update", profile)
         assert json.loads(body)["code"] == 400, "Incorrect current password allowed email change"
         profile["currentPassword"] = "A123456"
-        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        status, body, _ = request(opener, origin, "/user/update", profile)
         assert json.loads(body)["code"] == 200, "Email change must work without SMTP"
         previous_session = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-        status, body, final_url = request(previous_session, origin, "/media/user/login", {
+        status, body, final_url = request(previous_session, origin, "/user/login", {
             "username": profile["email"], "password": "A123456"
         })
-        assert "/media/user/login" not in final_url, "Updated email could not log in"
-        status, body, _ = request(opener, origin, "/media/user/userconfig")
+        assert "/user/login" not in final_url, "Updated email could not log in"
+        status, body, _ = request(opener, origin, "/user/userconfig")
         profile.update({"profileToken": profile_token(body), "password": "A234567", "confirmPassword": "A234567"})
-        status, body, _ = request(opener, origin, "/media/user/update", profile)
+        status, body, _ = request(opener, origin, "/user/update", profile)
         changed = json.loads(body)
         assert changed["code"] == 200 and changed["requireLogin"], "Password change must require login"
         for old_session in [opener, previous_session]:
-            assert "/media/user/login" in request(old_session, origin, "/media/user/userconfig")[2], "Old session survived password change"
-        status, body, final_url = request(opener, origin, "/media/user/login", {
+            assert "/user/login" in request(old_session, origin, "/user/userconfig")[2], "Old session survived password change"
+        status, body, final_url = request(opener, origin, "/user/login", {
             "username": "admin", "password": "A123456"
         })
-        assert "/media/user/login" in final_url, "Old password still logs in"
+        assert "/user/login" in final_url, "Old password still logs in"
         print("PASS: real email update without SMTP, new-email login, password change and old-session invalidation", flush=True)
 
         docker("stop", "--time", "10", name)
@@ -190,16 +196,16 @@ def main(image):
         assert stopped["ExitCode"] == 0, "Normal shutdown returned: " + json.dumps(stopped)
         docker("rm", name)
         _, origin, opener = start()
-        assert b"Direct Port Smoke" in request(opener, origin, "/media/user/login")[1], "Database setting lost after recreation"
-        status, body, final_url = request(opener, origin, "/media/user/login", {
+        assert b"Direct Port Smoke" in request(opener, origin, "/user/login")[1], "Database setting lost after recreation"
+        status, body, final_url = request(opener, origin, "/user/login", {
             "username": "profile-smoke@example.com", "password": "A234567"
         })
-        assert "/media/user/login" not in final_url, "Updated email/password lost after recreation"
-        status, body, _ = request(opener, origin, "/media/finance/user")
+        assert "/user/login" not in final_url, "Updated email/password lost after recreation"
+        status, body, _ = request(opener, origin, "/finance/user")
         assert status == 200 and b"12.34" in body and html.escape(currency).encode() in body, "Currency/balance lost after recreation"
-        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[0]})
+        status, body, _ = request(opener, origin, "/server/redeemCode", {"code": codes[0]})
         assert json.loads(body)["code"] == 400, "Used code status lost after recreation"
-        status, body, _ = request(opener, origin, "/media/server/redeemCode", {"code": codes[1]})
+        status, body, _ = request(opener, origin, "/server/redeemCode", {"code": codes[1]})
         redeemed = json.loads(body)
         assert redeemed["code"] == 200 and redeemed["rCoin"] == "24.68", "Unused code/balance lost after recreation"
 

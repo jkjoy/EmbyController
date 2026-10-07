@@ -133,7 +133,7 @@ function loadSeekList() {
     const status = document.getElementById('statusFilter').value;
     const search = document.getElementById('searchInput').value;
     
-    fetch('/media/admin/getSeekList', {
+    fetch('/admin/getSeekList', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -268,7 +268,7 @@ function handleStatusUpdate(event) {
     const status = document.getElementById('status').value;
     const remark = document.getElementById('statusRemark').value;
 
-    fetch('/media/admin/updateSeekStatus', {
+    fetch('/admin/updateSeekStatus', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

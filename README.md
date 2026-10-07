@@ -23,7 +23,7 @@
 
 应用镜像使用 Caddy 2 提供 HTTP 入口，运行 PHP-FPM、队列、WebSocket 和日志维护，不包含 Nginx 或 Redis 服务。Compose 中不启动 Redis；默认使用文件缓存，如需外部 Redis，在管理后台填写容器可访问的连接地址、端口、密码和数据库编号。镜像保留用于连接外部 Redis 的 PHP 客户端扩展。
 
-三套 Compose 的应用服务默认只发布 `8018:8018`，直接访问 `http://服务器IP:8018/media/user/login` 即可。Caddy 在容器内提供静态资源、转发 PHP 请求和同域 `/ws`，无需导出静态文件或安装外部 Nginx。默认部署使用 **SQLite**，无需安装 MySQL。数据库配置直接写在 Compose 的 `environment` 中，无需创建或挂载 `.env`：
+三套 Compose 的应用服务默认只发布 `8018:8018`，直接访问 `http://服务器IP:8018/user/login` 即可。Caddy 在容器内提供静态资源、转发 PHP 请求和同域 `/ws`，无需导出静态文件或安装外部 Nginx。默认部署使用 **SQLite**，无需安装 MySQL。数据库配置直接写在 Compose 的 `environment` 中，无需创建或挂载 `.env`：
 
 ```yaml
 services:
@@ -86,12 +86,12 @@ docker compose -f docker-compose.yml ps
 docker compose -f docker-compose.yml logs --tail=100 emby-controller
 ```
 
-等数据库迁移和应用启动完成后，开放防火墙/云安全组中的 TCP 8018，浏览器访问 `http://服务器IP:8018/media/user/login`。使用初始管理员 `admin/A123456` 登录并修改密码，在后台“系统设置”填写网站地址、网站标题、Logo、Emby 和所需服务。网站地址填写完整地址，例如 `http://服务器IP:8018`，不带 `/media`，并确保该地址从应用容器内也可访问；通知链接、支付回调和后台定时任务都使用它。
+等数据库迁移和应用启动完成后，开放防火墙/云安全组中的 TCP 8018，浏览器访问 `http://服务器IP:8018/user/login`。使用初始管理员 `admin/A123456` 登录并修改密码，在后台“系统设置”填写网站地址、网站标题、Logo、Emby 和所需服务。网站地址填写完整地址，例如 `http://服务器IP:8018`，不带路径前缀，并确保该地址从应用容器内也可访问；通知链接、支付回调和后台定时任务都使用它。
 
 | 入口 | 用途 |
 | --- | --- |
-| `http://服务器IP:8018/media` | 网站首页 |
-| `/media/user/login` | 用户和管理员登录 |
+| `http://服务器IP:8018/` | 网站首页 |
+| `/user/login` | 用户和管理员登录 |
 | `/assets/` 等静态资源 | 由容器内 Caddy 直接读取 |
 | 同域 `/ws` | 实时通知、未读数、在线人数；Caddy 转发到内部 WebSocket |
 
@@ -112,7 +112,7 @@ ports:
 
 ```sh
 curl -I http://127.0.0.1:8018/assets/index/css/layui.css
-curl -I http://127.0.0.1:8018/media/user/login
+curl -I http://127.0.0.1:8018/user/login
 docker compose -f docker-compose.yml ps
 docker compose -f docker-compose.yml logs --tail=100 emby-controller
 ```
@@ -194,7 +194,7 @@ server {
 ```sh
 sudo nginx -t
 sudo systemctl reload nginx
-curl -I http://emby.example.com/media/user/login
+curl -I http://emby.example.com/user/login
 ```
 
 #### 5. 配置可信反代
@@ -279,7 +279,7 @@ server {
 
 证书文件必须已存在并通过 `nginx -t` 才能重载。使用 HTTP webroot 验证续期时，按证书工具说明在外部 Nginx 中配置 `/.well-known/acme-challenge/` 的验证目录；不要依赖转发到应用的这个路径。Certbot 的 `--nginx` 模式会处理验证规则。
 
-HTTPS 配好后，在后台把网站地址改为 `https://emby.example.com`，不带 `/media`，确认应用容器能访问该地址。浏览器会自动使用 `wss://emby.example.com/ws`；Nginx 到 Caddy 仍使用 `http://127.0.0.1:8018`。若前方还有 CDN 或其它代理，先确保到 Nginx 的连接使用 HTTPS，再按该代理的说明在 Nginx 正确设置真实 IP，并限定可信来源。
+HTTPS 配好后，在后台把网站地址改为 `https://emby.example.com`，不带路径前缀，确认应用容器能访问该地址。浏览器会自动使用 `wss://emby.example.com/ws`；Nginx 到 Caddy 仍使用 `http://127.0.0.1:8018`。若前方还有 CDN 或其它代理，先确保到 Nginx 的连接使用 HTTPS，再按该代理的说明在 Nginx 正确设置真实 IP，并限定可信来源。
 
 外部 Nginx 的日志由宿主机管理，不受应用 Compose 的日志轮转限制。Ubuntu/Debian 软件包通常通过 `/etc/logrotate.d/nginx` 维护 `/var/log/nginx/*.log`；面板或自装 Nginx 需要检查自己的轮转设置。
 
@@ -357,7 +357,7 @@ docker compose -f docker-compose.yml exec emby-controller php think settings:imp
 
 ### 用户修改邮箱与密码
 
-用户登录后进入左侧菜单或右上角菜单的“用户设置”（`/media/user/userconfig`），可以修改登录名、昵称、邮箱和网站登录密码。修改邮箱或密码时必须输入当前密码；新密码留空表示保留原密码，填写新密码时需再次确认。新密码为 6–40 位，支持字母、数字、点、下划线和短横线。这是本网站的登录密码，Emby 密码在“站点账号”中单独修改。
+用户登录后进入左侧菜单或右上角菜单的“用户设置”（`/user/userconfig`），可以修改登录名、昵称、邮箱和网站登录密码。修改邮箱或密码时必须输入当前密码；新密码留空表示保留原密码，填写新密码时需再次确认。新密码为 6–40 位，支持字母、数字、点、下划线和短横线。这是本网站的登录密码，Emby 密码在“站点账号”中单独修改。
 
 邮箱必须格式正确且未被其他用户使用。管理员已配置邮件服务时，修改邮箱需点击“发送验证码”，填写新邮箱收到的六位验证码后保存；验证码有效期 5 分钟。未配置邮件服务时，仍可使用当前密码修改邮箱。新邮箱保存后可用于登录；修改密码后需要重新登录，原密码和此前登录的会话失效。
 
@@ -374,7 +374,7 @@ docker compose -f docker-compose.yml exec emby-controller php think settings:imp
 | 会员（按月） | 1–120 个月的整数时长，每月按 30 天计算 |
 | 余额 | 0.01–1000000.00 单位货币，最多两位小数 |
 
-用户登录后进入“充值与兑换”（`/media/finance/user`），填写兑换码即可兑换，无需启用在线支付。兑换余额不要求绑定 Emby 账号；兑换会员时长需先在“影视站账号”创建 Emby 账号，并在后台配置可用的 Emby 服务。未到期会员在原到期时间上累加，已过期会员从兑换时开始计算；终身会员可兑换余额，无需兑换会员时长。
+用户登录后进入“充值与兑换”（`/finance/user`），填写兑换码即可兑换，无需启用在线支付。兑换余额不要求绑定 Emby 账号；兑换会员时长需先在“影视站账号”创建 Emby 账号，并在后台配置可用的 Emby 服务。未到期会员在原到期时间上累加，已过期会员从兑换时开始计算；终身会员可兑换余额，无需兑换会员时长。
 
 每个兑换码仅能使用一次。管理员可在列表禁用或重新启用未使用的码，已使用的码不能再次启用。会员兑换会保留 Emby 的其他账号权限，并在需要时启用已禁用账号。数据库或 Emby 请求失败时，不会扣掉兑换码；用户可重试或联系管理员。兑换成功会记录账单，后台列表可查看使用者和使用时间。
 

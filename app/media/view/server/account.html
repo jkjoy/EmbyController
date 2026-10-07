@@ -330,7 +330,7 @@
         }
         startMainLoading();
         $.ajax({
-            url: '/media/server/changePassword',
+            url: '/server/changePassword',
             type: 'post',
             data: {
                 password: newPassword
@@ -354,7 +354,7 @@
         $.each($('button'), function (index, item) {
             $(item).attr('disabled', 'disabled');
         });
-        $.post('/media/server/activateEmbyUserByBalance', function (res) {
+        $.post('/server/activateEmbyUserByBalance', function (res) {
             if (res.code === 200) {
                 rStatusMessage.success(escapeHtmlText(res.message));
                 location.reload();
@@ -373,7 +373,7 @@
         $.each($('button'), function (index, item) {
             $(item).attr('disabled', 'disabled');
         });
-        $.post('/media/server/activateEmbyUserByCode', {
+        $.post('/server/activateEmbyUserByCode', {
             code: $('input[name=code]').val()
         }, function (res) {
             if (res.code === 200) {
@@ -394,7 +394,7 @@
         $.each($('button'), function (index, item) {
             $(item).attr('disabled', 'disabled');
         });
-        $.post('/media/server/activateEmbyUserByPay', {
+        $.post('/server/activateEmbyUserByPay', {
         }, function (res) {
             if (res.code === 200) {
                 rStatusMessage.success(escapeHtmlText(res.message));
@@ -421,7 +421,7 @@
             $(item).attr('disabled', 'disabled');
         });
 
-        $.post('/media/server/continueSubscribeEmbyUserByBalance', function (res) {
+        $.post('/server/continueSubscribeEmbyUserByBalance', function (res) {
             if (res.code === 200) {
                 rStatusMessage.success(escapeHtmlText(res.message));
                 location.reload();
@@ -440,7 +440,7 @@
         $.each($('button'), function (index, item) {
             $(item).attr('disabled', 'disabled');
         });
-        $.post('/media/server/continueSubscribeEmbyUserByCode', {
+        $.post('/server/continueSubscribeEmbyUserByCode', {
             code: $('input[name=code]').val()
         }, function (res) {
             if (res.code === 200) {
@@ -461,7 +461,7 @@
         $.each($('button'), function (index, item) {
             $(item).attr('disabled', 'disabled');
         });
-        $.post('/media/server/continueSubscribeEmbyUserByPay', {
+        $.post('/server/continueSubscribeEmbyUserByPay', {
         }, function (res) {
             if (res.code === 200) {
                 rStatusMessage.success(escapeHtmlText(res.message));
@@ -488,7 +488,7 @@
             $(item).attr('disabled', 'disabled');
         });
 
-        $.post('/media/server/continueSubscribeEmbyUserToLifetimeByRCoin', function (res) {
+        $.post('/server/continueSubscribeEmbyUserToLifetimeByRCoin', function (res) {
             if (res.code === 200) {
                 rStatusMessage.success(escapeHtmlText(res.message));
                 location.reload();
@@ -505,7 +505,7 @@
     // 监听autoRenew，当autoRenew发生变化时，发送请求
     document.getElementById('autoRenew').addEventListener('change', function () {
         $('input[name=auto-renew]').attr('disabled', 'disabled');
-        $.post('/media/server/setAutoRenew', {
+        $.post('/server/setAutoRenew', {
             autoRenew: this.checked?1:0
         }, function (res) {
             if (res.code === 200) {

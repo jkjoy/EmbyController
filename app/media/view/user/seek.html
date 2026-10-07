@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 加载求片列表
 function loadSeekList() {
-    fetch('/media/user/getSeekList', {
+    fetch('/user/getSeekList', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -84,12 +84,12 @@ function renderSeekList(list) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="py-3 px-4">
-                <a href="/media/user/seekDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">
+                <a href="/user/seekDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">
                     ${item.title}
                 </a>
             </td>
             <td class="py-3 px-4">
-                <a href="/media/user/notificationDetail?id=${item.userId}" class="text-blue-400 hover:text-blue-300">
+                <a href="/user/notificationDetail?id=${item.userId}" class="text-blue-400 hover:text-blue-300">
                     ${item.nickName || item.userName}(#${item.userId})
                 </a>
             </td>
@@ -180,7 +180,7 @@ function openRequestDialog() {
     document.getElementById('requestDialog').classList.remove('hidden');
     
     // 检查权限并显示相应的界面
-    fetch('/media/user/searchMoviePilot', {
+    fetch('/user/searchMoviePilot', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -232,7 +232,7 @@ function checkPermissionAndSearch() {
     // 清空描述框
     document.getElementById('movieDescription').value = '';
 
-    fetch('/media/user/searchMoviePilot', {
+    fetch('/user/searchMoviePilot', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -299,7 +299,7 @@ function renderSearchResults(results) {
 function addDownloadTask(torrentInfo) {
     startMainLoading();
     
-    fetch('/media/user/addMoviePilotTask', {
+    fetch('/user/addMoviePilotTask', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -337,7 +337,7 @@ function submitManualRequest() {
         return;
     }
     
-    fetch('/media/user/addSeek', {
+    fetch('/user/addSeek', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -365,7 +365,7 @@ function formatSize(bytes) {
 
 // 处理同求请求
 function handleSeek(seekId) {
-    fetch('/media/user/addSeekUser', {
+    fetch('/user/addSeekUser', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

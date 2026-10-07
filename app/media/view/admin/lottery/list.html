@@ -3,7 +3,7 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-2xl font-bold">抽奖管理</h1>
-        <a href="{:url('admin/addLottery')}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
+        <a href="{:url('/admin/addLottery')}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
             添加抽奖
         </a>
     </div>
@@ -57,7 +57,7 @@
                         </td>
                         <td class="py-3 px-4 space-x-2">
                             {if $vo.status neq 2}
-                            <a href="{:url('admin/editLottery')}?id={$vo.id}" 
+                            <a href="{:url('/admin/editLottery')}?id={$vo.id}"
                                class="text-blue-400 hover:text-blue-300">
                                 编辑
                             </a>
@@ -75,7 +75,7 @@
                             </a>
                             {/if}
                             {/if}
-                            <a href="{:url('admin/lotteryParticipants')}?id={$vo.id}"
+                            <a href="{:url('/admin/lotteryParticipants')}?id={$vo.id}"
                                class="text-blue-400 hover:text-blue-300">
                                 参与者
                             </a>
@@ -148,7 +148,7 @@ function changeStatus(id, status) {
     showConfirmModal(
         status ? '确定要禁用该抽奖吗？' : '确定要启用该抽奖吗？',
         function() {
-            $.post("{:url('admin/changeLotteryStatus')}", {
+            $.post("{:url('/admin/changeLotteryStatus')}", {
                 id: id,
                 status: status
             }, function(res) {
@@ -237,7 +237,7 @@ $(function() {
     $('#searchForm').submit(function(e) {
         e.preventDefault();
         const keyword = $('input[name="keyword"]').val();
-        window.location.href = "{:url('admin/lotteryList')}?page=1&keyword=" + encodeURIComponent(keyword);
+        window.location.href = "{:url('/admin/lotteryList')}?page=1&keyword=" + encodeURIComponent(keyword);
     });
 });
 </script>

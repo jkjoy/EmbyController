@@ -29,7 +29,7 @@
 <!-- 主要内容区域 -->
 <div class="max-w-4xl mx-auto px-4">
     <div class="flex items-center space-x-4 mb-4">
-        <a href="/media/user/notifications" class="glass-effect p-2 rounded-full hover:bg-white/10 transition-colors">
+        <a href="/user/notifications" class="glass-effect p-2 rounded-full hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -136,7 +136,7 @@ function sendMessage() {
 
         // 发送消息到服务器
         $.ajax({
-            url: '/media/user/sendMessage',
+            url: '/user/sendMessage',
             type: 'POST',
             data: {
                 id: <?php echo $id; ?>,
@@ -174,7 +174,7 @@ async function loadMessages(isInitial = false) {
     loadingMore.classList.remove('hidden');
 
     $.ajax({
-        url: '/media/user/getNotificationDetail',
+        url: '/user/getNotificationDetail',
         type: 'POST',
         data: {
             id: <?php echo $id; ?>,
@@ -285,12 +285,12 @@ document.getElementById('messageInput').addEventListener('keypress', (e) => {
 //                 if (message.data) {
 //
 //                     // 如果在消息列表页面，自动更新未读状态
-//                     if (window.location.pathname === '/media/user/notifications') {
+//                     if (window.location.pathname === '/user/notifications') {
 //                         updateMessageStatus(message.data.notificationId);
 //                     }
 //
 //                     // 如果在聊天详情页面，添加新消息
-//                     if (window.location.pathname.includes('/media/user/notificationDetail')) {
+//                     if (window.location.pathname.includes('/user/notificationDetail')) {
 //                         const currentUserId = <?php echo $id; ?>;
 //                         if (message.data.fromUserId === currentUserId || message.data.toUserId === currentUserId) {
 //                             const messageElement = createMessageElement({

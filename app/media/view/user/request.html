@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 加载工单列表
 function loadRequestList() {
-    fetch('/media/user/getRequestList', {
+    fetch('/user/getRequestList', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -79,14 +79,14 @@ function renderRequestList(list) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="py-3 px-4">
-                <a href="/media/user/requestDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">
+                <a href="/user/requestDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">
                     ${requestInfo.title}
                 </a>
             </td>
             <td class="py-3 px-4">${item.createdAt}</td>
             <td class="py-3 px-4">${getStatusBadge(item.type)}</td>
             <td class="py-3 px-4">
-                <a href="/media/user/requestDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">查看详情</a>
+                <a href="/user/requestDetail?id=${item.id}" class="text-blue-400 hover:text-blue-300">查看详情</a>
             </td>
         `;
         tbody.appendChild(tr);
@@ -176,7 +176,7 @@ function handleCreateTicket(event) {
         return;
     }
     $.ajax({
-        url: '/media/user/newRequest',
+        url: '/user/newRequest',
         type: 'POST',
         data: {
             title: title,

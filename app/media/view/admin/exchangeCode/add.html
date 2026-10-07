@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-2xl font-bold">添加兑换码</h1>
-        <a href="{:url('admin/exchangeCodeList')}" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors">返回列表</a>
+        <a href="{:url('/admin/exchangeCodeList')}" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors">返回列表</a>
     </div>
 
     <!-- Tab 切换按钮 -->
@@ -296,7 +296,7 @@ $(function() {
         e.preventDefault();
         if (!submitForm($(this))) return;
         
-        $.post("{:url('admin/addExchangeCode')}", $(this).serialize(), function(res) {
+        $.post("{:url('/admin/addExchangeCode')}", $(this).serialize(), function(res) {
             if(res.code == 200) {
                 rStatusMessage.success(escapeHtmlText(res.msg));
                 showResultModal(res.data.codes);
@@ -317,7 +317,7 @@ $(function() {
             return;
         }
 
-        $.post("{:url('admin/addExchangeCode')}", $(this).serialize(), function(res) {
+        $.post("{:url('/admin/addExchangeCode')}", $(this).serialize(), function(res) {
             if(res.code == 200) {
                 rStatusMessage.success(escapeHtmlText(res.msg));
                 showResultModal(res.data.codes);

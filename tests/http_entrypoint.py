@@ -10,6 +10,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import socketserver
@@ -196,19 +197,33 @@ def main():
 
             caddy()
             expect(request("/fixture.txt")[2] == static, "Caddy must serve public static files")
-            status, headers, _ = request("/")
-            expect(status in (301, 302) and headers.get("Location", "").startswith("/media"), "Website root must execute index.php and open the media application")
+            for path in ["/", "/?entrypoint=query", "/index/index"]:
+                status, _, body = request(path)
+                expect(status == 200 and b'id="menuButton"' in body and b"/user/login" in body, "Website root must directly render the media home page: " + path)
+                expect(re.search(rb'''["']/media(?:/|["'])''', body) is None, "Home page links must use root application routes")
             for path in ["/.env", "/hidden/.token", "/router.php", "/router.php/anything", "/danger.PHP", "/danger.php.txt"]:
                 status, _, body = request(path)
                 expect(status == 404 and b"MUST_NOT_LEAK" not in body, "Hidden/other PHP content must be denied: " + path)
-            status, headers, body = request("/media/user/login?entrypoint=query")
-            expect(status == 200 and b'name="username"' in body and b'name="password"' in body, "Plain application route must reach the actual login page")
-            status, headers, body = request("/media/admin/setting")
-            expect(status in (301, 302) and "/media/user/login" in headers.get("Location", ""), "Unauthenticated admin route must redirect")
-            status, headers, _ = request("/media/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded"})
+            for path in ["/user/login?entrypoint=query", "/user/login.html?entrypoint=query", "/index.php/user/login?entrypoint=query"]:
+                status, _, body = request(path)
+                expect(status == 200 and b'name="username"' in body and b'name="password"' in body, "Root application route must reach the actual login page: " + path)
+            for path in ["/admin/setting", "/admin/setting?next=/user/login"]:
+                status, headers, _ = request(path)
+                expect(status in (301, 302) and "/user/login" in headers.get("Location", ""), "Unauthenticated admin route must redirect: " + path)
+            for path, data in [
+                ("/server/redeemCode", {"code": "MISSING"}),
+                ("/user/update", {}),
+                ("/user/sendVerifyCode", {"action": "update"}),
+            ]:
+                for route in [path, path + ".html"]:
+                    status, _, body = request(route, "POST", urllib.parse.urlencode(data), {"Content-Type": "application/x-www-form-urlencoded"})
+                    expect(status == 401 and json.loads(body)["code"] == 401, "Unauthenticated protected action must return JSON 401: " + route)
+            status, _, body = request("/api/index/ping")
+            expect(status == 200 and json.loads(body)["msg"] == "pong", "The API application must remain available under /api")
+            status, headers, _ = request("/user/login", "POST", urllib.parse.urlencode({"username": "admin", "password": "A123456"}), {"Content-Type": "application/x-www-form-urlencoded"})
             expect(status in (301, 302) and "RANDALLANJIESESSID=" in headers.get("Set-Cookie", ""), "Initial admin must log in through real HTTP and receive a session cookie")
             cookie = headers["Set-Cookie"].split(";", 1)[0]
-            status, _, body = request("/media/admin/setting", headers={"Cookie": cookie})
+            status, _, body = request("/admin/setting", headers={"Cookie": cookie})
             expect(status == 200 and b"siteName" in body, "Admin session must survive a subsequent HTTP request")
 
             with socket.create_connection(("127.0.0.1", http_port), timeout=5) as client:
@@ -221,20 +236,21 @@ def main():
 
             caddy(probe=True)
             spoof = {"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Host": "spoof.invalid", "X-Forwarded-Proto": "https", "X-Forwarded-Port": "666", "X-Real-IP": "203.0.113.8", "CF-Connecting-IP": "203.0.113.7", "X-Rewrite-URL": "/spoof"}
-            status, _, body = request("/media/fixture/path?key=a%2Bb&number=7", headers=spoof)
+            status, _, body = request("/fixture/path?key=a%2Bb&number=7", headers=spoof)
             probe = json.loads(body)
             server = probe["server"]
-            expect(status == 200 and server["PATH_INFO"] == "/media/fixture/path" and server["SCRIPT_NAME"] == "/index.php", "FastCGI must preserve ThinkPHP PATH_INFO")
+            expect(status == 200 and server["PATH_INFO"] == "/fixture/path" and server["SCRIPT_NAME"] == "/index.php", "FastCGI must preserve ThinkPHP PATH_INFO")
             expect(Path(server["SCRIPT_FILENAME"]).resolve() == (root / "probe-public/index.php").resolve(), "Only the temporary front controller must execute")
-            expect(probe["get"] == {"key": "a+b", "number": "7"} and server["REQUEST_URI"].startswith("/media/fixture/path?"), "Original URI and query parameters must survive rewriting")
+            expect(probe["get"] == {"key": "a+b", "number": "7"} and server["REQUEST_URI"].startswith("/fixture/path?"), "Original URI and query parameters must survive rewriting")
             expect(server["HTTP_X_FORWARDED_PROTO"] == "http" and server["HTTP_X_FORWARDED_HOST"] == "127.0.0.1:" + str(http_port), "Untrusted scheme/host headers must be replaced")
             expect(server["HTTP_X_REAL_IP"] == "127.0.0.1" and server["HTTP_X_FORWARDED_PORT"] == str(http_port), "Untrusted client-IP/port headers must be replaced")
             expect("HTTP_CF_CONNECTING_IP" not in server and "HTTP_X_REWRITE_URL" not in server, "Untrusted alternate IP/URI headers must be removed")
             expect(request("/", "POST", b"x" * (20 * 1024 * 1024 + 1), {"Content-Type": "application/octet-stream"})[0] == 413, "Request body over 20 MiB must be rejected")
 
             caddy(probe=True, trusted=True)
-            status, _, body = request("/media/proxy", headers={"Host": "proxy.example:8090", "X-Forwarded-For": "203.0.113.25", "X-Forwarded-Host": "proxy.example:8090", "X-Forwarded-Proto": "https", "X-Forwarded-Port": "8090"})
+            status, _, body = request("/proxy", headers={"Host": "proxy.example:8090", "X-Forwarded-For": "203.0.113.25", "X-Forwarded-Host": "proxy.example:8090", "X-Forwarded-Proto": "https", "X-Forwarded-Port": "8090"})
             trusted = json.loads(body)["server"]
+            expect(status == 200 and trusted["PATH_INFO"] == "/proxy", "Proxy probe must preserve the root application route")
             expect(trusted["HTTP_X_FORWARDED_PROTO"] == "https" and trusted["HTTP_X_FORWARDED_HOST"] == "proxy.example:8090", "Explicitly trusted proxy must retain external HTTPS and Host")
             expect(trusted["HTTP_X_REAL_IP"] == "203.0.113.25" and trusted["HTTP_X_FORWARDED_PORT"] == "8090", "Explicitly trusted proxy must retain client IP and external port")
             print("PASS: real Caddy/FastCGI SQLite login and admin session, static/hidden/PHP rules, PATH_INFO/query, 20MiB limit, WebSocket frames and explicit proxy trust")

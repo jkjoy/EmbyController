@@ -27,7 +27,7 @@ function requestFixture(think\App $app, string $method, array $data = []): void 
     $_SERVER['SERVER_NAME'] = 'settings.example.com';
     $_SERVER['SERVER_PORT'] = '80';
     $_SERVER['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest';
-    $_SERVER['REQUEST_URI'] = '/media/admin/setting';
+    $_SERVER['REQUEST_URI'] = '/admin/setting';
     $_SERVER['SCRIPT_NAME'] = '/index.php';
     $request = app\Request::__make($app);
     $request->setMethod($method)->setController('Admin')->setAction('setting')->setHost('settings.example.com');

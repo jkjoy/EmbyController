@@ -33,7 +33,7 @@
         <div class="glass-effect rounded-2xl p-6 md:p-8">
             <div class="text-center mb-8">
                 {if config('app.site_logo')}
-                <a href="/media" class="inline-flex mb-4" aria-label="{:siteConfigText('app_name')}">
+                <a href="/" class="inline-flex mb-4" aria-label="{:siteConfigText('app_name')}">
                     <img src="{:siteConfigText('site_logo')}" alt="{:siteConfigText('app_name')}" class="h-12 w-12 object-contain" />
                 </a>
                 {/if}
@@ -41,7 +41,7 @@
                 <p class="text-white/60">输入您的用户名或者邮箱地址，我们将发送重置密码的链接</p>
             </div>
 
-            <form class="space-y-6" action="{:url('media/user/forgot')}<?php echo $code == '' ? '' : '?code=' . $code; ?>" method="post" id="forgot">
+            <form class="space-y-6" action="{:url('/user/forgot')}<?php echo $code == '' ? '' : '?code=' . $code; ?>" method="post" id="forgot">
                 {if condition="$code == ''"}
                 <div class="space-y-2">
                     <label class="text-sm text-white/80">电子邮箱或登录名</label>

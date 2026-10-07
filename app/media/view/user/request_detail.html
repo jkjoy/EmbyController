@@ -18,7 +18,7 @@
             </div>
         </div>
         <div class="flex flex-col items-end gap-4">
-            <a href="/media/user/request" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+            <a href="/user/request" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
                 返回工单列表
             </a>
             {if $request->type != -1}
@@ -155,7 +155,7 @@
         }
         onProgress = true;
         $.ajax({
-            url: '/media/user/requestAddReply',
+            url: '/user/requestAddReply',
             type: 'POST',
             data: {
                 requestId: {$request->id},
@@ -183,7 +183,7 @@
         }
         onProgress = true;
         $.ajax({
-            url: '/media/user/requestClose',
+            url: '/user/requestClose',
             type: 'POST',
             data: {
                 requestId: {$request->id}

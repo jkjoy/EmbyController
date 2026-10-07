@@ -1,33 +1,33 @@
 <!-- 左侧菜单 -->
 <div class="w-64 glass-effect rounded-lg p-4" id="sideMenu">
     <nav class="space-y-2">
-        <a href="/media/user/index" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/user/index" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
             </svg>
             <span>仪表盘</span>
         </a>
-        <a href="/media/user/userconfig" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/user/userconfig" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0H5z" />
             </svg>
             <span>用户设置</span>
         </a>
         {if isset($embyUser) && $embyUser!=null}
-        <a href="/media/server/account" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/server/account" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.008 2.002L6.016 6.994l1.168 1.168-5.12 5.12 5.12 5.12 1.168-1.168 5.12 5.12 5.12-5.12-1.168-1.168 5.12-5.12-5.12-5.12-1.168 1.168-5.12-5.12m-1.024 6.528l6.144 3.584-6.144 3.584v-7.168z" />
             </svg>
             <span>站点账号</span>
         </a>
         {if isset($embyUser['isActivate']) && $embyUser['isActivate'] == 1}
-        <a href="/media/server/devices" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/server/devices" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
             </svg>
             <span>设备管理</span>
         </a>
-        <a href="/media/server/servers" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/server/servers" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
@@ -35,7 +35,7 @@
         </a>
         {/if}
         {else}
-        <a href="/media/server/create" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/server/create" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
@@ -47,7 +47,7 @@
         {/if}
 
 
-        <a href="/media/user/request" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/user/request" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
@@ -56,7 +56,7 @@
 
         {if isset($embyUser['isActivate']) && $embyUser['isActivate'] == 1}
         {if $enableMoviepilot}
-        <a href="/media/media/search" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <a href="/user/seek" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -64,32 +64,32 @@
         </a>
         {/if}
 
-        <a href="/media/user/seek" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <a href="/user/seek" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
             </svg>
             <span>求片中心</span>
         </a>
         {/if}
-        <a href="/media/user/comment" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <a href="/user/comment" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
             <span>影评中心</span>
         </a>
-        <a href="/media/finance/user" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/finance/user" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
             <span>充值与兑换</span>
         </a>
-        <a href="/media/finance/payRecord" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/finance/payRecord" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <span>账单记录</span>
         </a>
-        <a href="/media/finance/record" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/finance/record" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
@@ -99,45 +99,45 @@
         <?php $user=session('r_user'); ?>
         {if isset($user->authority) && $user->authority == 0}
         <div class="border-t border-white/10"></div>
-        <a href="/media/admin/setting" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/admin/setting" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a10 10 0 100 20 10 10 0 000-20zM12 6a6 6 0 100 12 6 6 0 000-12z" />
             </svg>
             <span>系统设置</span>
         </a>
-        <a href="/media/admin/logs" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/admin/logs" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg t="1740553649293" class="h-5 w-5" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2212">
                 <path d="M96 652.8c-19.2 0-38.4-19.2-38.4-38.4V409.6c0-19.2 19.2-38.4 38.4-38.4s38.4 19.2 38.4 38.4v204.8c0 25.6-12.8 38.4-38.4 38.4z" p-id="2213" fill="#ffffff"></path><path d="M1017.6 512c0-51.2-32-89.6-76.8-102.4V160c0-83.2-64-147.2-147.2-147.2H204.8C121.6 12.8 57.6 76.8 57.6 160v19.2c0 19.2 19.2 38.4 38.4 38.4s38.4-19.2 38.4-38.4v-19.2c0-38.4 32-70.4 70.4-70.4h595.2c38.4 0 70.4 32 70.4 70.4V409.6c-38.4 12.8-76.8 57.6-76.8 102.4 0 51.2 32 89.6 76.8 102.4v249.6c0 38.4-32 70.4-70.4 70.4H204.8c-38.4 0-70.4-32-70.4-70.4v-19.2c0-19.2-19.2-38.4-38.4-38.4s-38.4 19.2-38.4 38.4v19.2c0 83.2 64 147.2 147.2 147.2h595.2c83.2 0 147.2-64 147.2-147.2V620.8c44.8-19.2 70.4-57.6 70.4-108.8z m-108.8 51.2c-25.6 0-51.2-19.2-51.2-51.2 0-25.6 19.2-51.2 51.2-51.2s51.2 19.2 51.2 51.2c-6.4 25.6-25.6 51.2-51.2 51.2z" p-id="2214" fill="#ffffff"></path>
                 <path d="M659.2 332.8H345.6c-19.2 0-38.4-12.8-38.4-38.4 0-19.2 19.2-38.4 38.4-38.4h313.6c19.2 0 38.4 19.2 38.4 38.4 0 25.6-19.2 38.4-38.4 38.4zM659.2 550.4H345.6c-19.2 0-38.4-12.8-38.4-38.4 0-19.2 19.2-38.4 38.4-38.4h313.6c19.2 0 38.4 19.2 38.4 38.4 0 25.6-19.2 38.4-38.4 38.4zM659.2 768H345.6c-19.2 0-38.4-19.2-38.4-38.4s19.2-38.4 38.4-38.4h313.6c19.2 0 38.4 19.2 38.4 38.4 0 25.6-19.2 38.4-38.4 38.4z" p-id="2215" fill="#ffffff"></path><path d="M153.6 768H44.8c-19.2 0-38.4-19.2-38.4-38.4s19.2-38.4 38.4-38.4h108.8c19.2 0 38.4 19.2 38.4 38.4 0 25.6-19.2 38.4-38.4 38.4z" p-id="2216" fill="#ffffff"></path><path d="M153.6 332.8H44.8c-25.6 0-38.4-12.8-38.4-38.4 0-19.2 12.8-38.4 38.4-38.4h108.8c19.2 0 38.4 19.2 38.4 38.4 0 25.6-19.2 38.4-38.4 38.4z" p-id="2217" fill="#ffffff"></path>
             </svg>
             <span>日志管理</span>
         </a>
-        <a href="/media/admin/userList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/admin/userList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <span>用户管理</span>
         </a>
-        <a href="/media/admin/exchangeCodeList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/admin/exchangeCodeList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.89 4.18H3.11C2.5 4.18 2 4.68 2 5.29v13.42c0 .61.5 1.11 1.11 1.11h17.78c.61 0 1.11-.5 1.11-1.11V5.29c0-.61-.5-1.11-1.11-1.11zM15.72 13.5c0 .55-.45 1-1 1h-5.44c-.55 0-1-.45-1-1v-1.11c0-.55.45-1 1-1h5.44c.55 0 1 .45 1 1v1.11z" fill="#262536"></path>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.37 7.83h19.26v8.34H2.37V7.83zM15.72 13.5c0 .55-.45 1-1 1h-5.44c-.55 0-1-.45-1-1v-1.11c0-.55.45-1 1-1h5.44c.55 0 1 .45 1 1v1.11z" fill="#262536"></path>
             </svg>
             <span>兑换码管理</span>
         </a>
-        <a href="/media/admin/request" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
+        <a href="/admin/request" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors" onclick="startMainLoading();">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             <span>工单处理</span>
         </a>
-        <a href="/media/admin/seek" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <a href="/admin/seek" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             <span>求片管理</span>
         </a>
-        <a href="/media/admin/lotteryList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <a href="/admin/lotteryList" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path d="M0 0h24v24H0V0z" fill="#000000" opacity=".01"></path>
                 <path d="M5.74 4.38c0-2.1 2.47-3.24 4.07-1.87L12 4.53l2.19-1.88c1.6-1.37 4.07-.23 4.07 1.87V4.8h1.64a2.4 2.4 0 0 1 2.4 2.4v4.01a.8.8 0 0 1-.8.8h-.8v7.2a4 4 0 0 1-4 4H6.4a4 4 0 0 1-4-4v-7.2h-.8a.8.8 0 0 1-.8-.8v-4.01a2.4 2.4 0 0 1 2.4-2.4h1.64v-.42zM4.1 10.4h7.2V6.55H4.1a.8.8 0 0 0-.8.8v3.2h.8zM10.7 10.4h8V6.4a.8.8 0 0 0-.8-.8h-7.2v4.8zM4.8 12v7.2a2.4 2.4 0 0 0 2.4 2.4h4.01V12H4.8zM12 12v9.6h4.8a2.4 2.4 0 0 0 2.4-2.4V12H12zM17.4 4.38a.8.8 0 0 0-1.32-.61L14.5 4.8h2.3v-.42zM8.4 3.77a.8.8 0 0 0-1.32.61V4.8h2.65L8.4 3.77z" fill="#000000"></path>

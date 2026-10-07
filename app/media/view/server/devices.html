@@ -176,7 +176,7 @@
 
 <script>
     $(document).ready(function () {
-        fetch('/media/server/session', {
+        fetch('/server/session', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -259,7 +259,7 @@
 
     function deleteDevice(deviceId) {
         showConfirmModal('确定要删除设备吗？', function() {
-            fetch('/media/server/deletedevice', {
+            fetch('/server/deletedevice', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

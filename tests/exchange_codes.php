@@ -85,7 +85,7 @@ function exchangeRequest(think\App $app, string $method = 'POST', array $data = 
     $_SERVER['SERVER_NAME'] = 'exchange.test';
     $_SERVER['SERVER_PORT'] = '80';
     $_SERVER['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest';
-    $_SERVER['REQUEST_URI'] = '/media/server/redeemCode';
+    $_SERVER['REQUEST_URI'] = '/server/redeemCode';
     $_SERVER['SCRIPT_NAME'] = '/index.php';
     $request = app\Request::__make($app);
     $request->setMethod($method)->setController('Server')->setAction('redeemCode')->setHost('exchange.test');

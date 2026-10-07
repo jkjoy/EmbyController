@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-2xl font-bold">求片详情</h1>
-        <a href="/media/user/seek" class="text-blue-400 hover:text-blue-300">返回列表</a>
+        <a href="/user/seek" class="text-blue-400 hover:text-blue-300">返回列表</a>
     </div>
 
     <!-- 基本信息 -->
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadSeekDetail(seekId) {
-    fetch('/media/user/getSeekDetail', {
+    fetch('/user/getSeekDetail', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

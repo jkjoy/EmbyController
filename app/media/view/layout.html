@@ -321,7 +321,7 @@ function openRequestDialog() {
 	document.getElementById('movieDescription').value = '';
 	
 	// 检查权限并显示相应的界面
-	fetch('/media/user/searchMoviePilot', {
+	fetch('/user/searchMoviePilot', {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -362,7 +362,7 @@ function checkPermissionAndSearch() {
 	// 清空描述框
 	document.getElementById('movieDescription').value = '';
 
-	fetch('/media/user/searchMoviePilot', {
+	fetch('/user/searchMoviePilot', {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -462,13 +462,13 @@ function renderSearchResults(results) {
 
 	// 登出功能
 	function logout() {
-		fetch('/media/user/logout', {
+		fetch('/user/logout', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 			},
 		}).then(() => {
-			window.location.href = '/media';
+			window.location.href = '/';
 		});
 	}
 
@@ -625,7 +625,7 @@ function renderSearchResults(results) {
 
 	function showQuotedComment(commentId) {
 		startMainLoading()
-		fetch('/media/user/getOneComment', {
+		fetch('/user/getOneComment', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

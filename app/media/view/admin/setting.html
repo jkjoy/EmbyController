@@ -425,7 +425,7 @@ function saveSettings() {
     }).get();
 
     $('#save-settings-button').prop('disabled', true).text('保存中...');
-    $.post("{:url('admin/setting', [])}", formData, function(res) {
+    $.post("{:url('/admin/setting', [])}", formData, function(res) {
         if(res.code == 200) {
             rStatusMessage.success(res.message);
             $('[data-setting-secret="1"]').each(function() {

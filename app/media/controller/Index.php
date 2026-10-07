@@ -270,7 +270,7 @@ class Index extends BaseController
 
     public function admin()
     {
-        return redirect((string) url('/media/admin/index'));
+        return redirect((string) url('/admin/index'));
     }
 
 }

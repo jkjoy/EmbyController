@@ -70,7 +70,7 @@
                     <span class="text-gray-300">账号状态</span>
                     <span>未创建Emby账号</span>
                 </div>
-                <p class="text-sm text-gray-400">(请前往：<a href="/media/server/create">创建影视账户</a>，进行创建)<br /><a href="/media/server/create">点我前往创建Emby账号</a></p>
+                <p class="text-sm text-gray-400">(请前往：<a href="/server/create">创建影视账户</a>，进行创建)<br /><a href="/server/create">点我前往创建Emby账号</a></p>
                 {/if}
             </div>
         </div>
@@ -101,7 +101,7 @@
             $('.getMore').innerHTML = '<button class="btn btn-primary">加载中...</button>';
         }
         $.ajax({
-            url: '/media/user/getLatestSeen',
+            url: '/user/getLatestSeen',
             type: 'POST',
             data: {
                 page: page,
@@ -119,9 +119,9 @@
                         }
                     } else {
                         for (var i = 0; i < lastSeenItem.length; i++) {
-                            html += '<div class="w-[160px] md:w-[180px] flex-none snap-start" onclick="window.location.href=\'/media/user/commentDetail?id=' + lastSeenItem[i]['mediaId'] + '\'">';
+                            html += '<div class="w-[160px] md:w-[180px] flex-none snap-start" onclick="window.location.href=\'/user/commentDetail?id=' + lastSeenItem[i]['mediaId'] + '\'">';
                             html += '<div class="relative aspect-[2/3] overflow-hidden rounded-lg">';
-                            html += '<img src="/media/index/getPrimaryImg?id=' + lastSeenItem[i]['mediaId'] + '" alt="' + lastSeenItem[i]['mediaName'] + '" class="w-full h-full object-cover rounded-lg zoom-img" loading="lazy" />';
+                            html += '<img src="/index/getPrimaryImg?id=' + lastSeenItem[i]['mediaId'] + '" alt="' + lastSeenItem[i]['mediaName'] + '" class="w-full h-full object-cover rounded-lg zoom-img" loading="lazy" />';
                             html += '<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>';
                             html += '<div class="absolute bottom-0 pt-2 pb-2 pl-2 md:pt-3 md:pb-3 md:pl-3 w-full">';
                             html += '<span class="text-xs uppercase tracking-wider text-white/80">';
@@ -247,7 +247,7 @@
         loading = true;
         rChangeMessage(bobol, '正在签到中，请稍后...');
         $.ajax({
-            url: '/media/user/sign',
+            url: '/user/sign',
             type: 'post',
             data: data,
             success: function (res) {

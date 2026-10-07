@@ -6,7 +6,7 @@ return [
 
     'listen'    => [
         'AppInit'  => [\app\listener\InitSiteConfig::class],
-        'HttpRun'  => [],
+        'HttpRun'  => [\app\listener\BindMediaApp::class],
         'HttpEnd'  => [],
         'LogLevel' => [],
         'LogWrite' => [],

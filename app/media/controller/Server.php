@@ -33,7 +33,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         return view();
     }
@@ -43,7 +43,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Session::get('r_user')->authority == 0) {
             $data = Request::get();
@@ -52,14 +52,14 @@ class Server extends BaseController
                 $user = $userModel->where('id', $data['userId'])->find();
                 if ($user) {
                     Session::set('r_user', $user);
-                    return redirect('/media/user/index');
+                    return redirect('/user/index');
                 }
             } else if (isset($data['UserId'])) {
                 $userModel = new UserModel();
                 $user = $userModel->where('id', $data['UserId'])->find();
                 if ($user) {
                     Session::set('r_user', $user);
-                    return redirect('/media/user/index');
+                    return redirect('/user/index');
                 }
             }
         }
@@ -70,7 +70,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         View::assign('lifetimecost', $this->lifetimecost);
         View::assign('lifetimeauthority', $this->lifetimeauthority);
@@ -115,7 +115,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -161,12 +161,12 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         $embyUserModel = new EmbyUserModel();
         $user = $embyUserModel->where('userId', Session::get('r_user')->id)->find();
         if (isset($user->embyId)) {
-            return redirect((string) url('/media/server/account'));
+            return redirect((string) url('/server/account'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -233,7 +233,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         if (Cache::get('serverList')) {
@@ -346,7 +346,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         $sysConfigModel = new SysConfigModel();
@@ -468,7 +468,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         $embyUserModel = new EmbyUserModel();
         $user = $embyUserModel->where('userId', Session::get('r_user')->id)->find();
@@ -498,7 +498,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -530,7 +530,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $userId = Session::get('r_user')->id;
@@ -613,7 +613,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $userId = Session::get('r_user')->id;
@@ -689,7 +689,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $userId = Session::get('r_user')->id;
@@ -1025,7 +1025,7 @@ class Server extends BaseController
 
                     if ($sendFlag) {
                         $Email = $user['email'];
-                        $SiteUrl = Config::get('app.app_host').'/media';
+                        $SiteUrl = Config::get('app.app_host').'/';
 
                         $sysConfigModel = new SysConfigModel();
                         $sysnotificiations = $sysConfigModel->where('key', 'sysnotificiations')->find();
@@ -1062,7 +1062,7 @@ class Server extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1098,8 +1098,8 @@ class Server extends BaseController
                     'pid' => Config::get('payment.epay.id'),
                     'type' => $payMethod,
                     'out_trade_no' => $tradeNo,
-                    'notify_url' => Config::get('app.app_host') . '/media/server/resolvePayment?key=' . $payCompleteKey,
-                    'return_url' => Config::get('app.app_host') . '/media/server/account',
+                    'notify_url' => Config::get('app.app_host') . '/server/resolvePayment?key=' . $payCompleteKey,
+                    'return_url' => Config::get('app.app_host') . '/server/account',
                     'name' => currencyName() . '充值',
                     'money' => $data['money'],
                     'clientip' => $realIp,
@@ -1114,8 +1114,8 @@ class Server extends BaseController
                     'order_id' => $tradeNo,
                     'amount' => $data['money'],
                     'signature' => '',
-                    'notify_url' => Config::get('app.app_host') . '/media/server/resolveUsdtPayment?key=' . $payCompleteKey,
-                    'redirect_url' => Config::get('app.app_host') . '/media/server/account'
+                    'notify_url' => Config::get('app.app_host') . '/server/resolveUsdtPayment?key=' . $payCompleteKey,
+                    'redirect_url' => Config::get('app.app_host') . '/server/account'
                 ];
             }
             $respond = getHttpResponse($url, $sendData);

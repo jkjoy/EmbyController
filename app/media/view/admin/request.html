@@ -69,7 +69,7 @@
                 {/if}
             </td>
             <td class="py-3 px-4">
-                <a href="{:url('media/admin/requestDetail')}?id={$request->id}" class="text-blue-400 hover:underline">查看</a>
+                <a href="{:url('/admin/requestDetail')}?id={$request->id}" class="text-blue-400 hover:underline">查看</a>
                 {if ($request->type == 1 && $request->replyUserId==null) || ($request->type == 2 && $request->replyUserId==null)}
                 <a onclick="getThisReply({$request->id})" class="text-yellow-400 hover:underline">认领</a>
                 {/if}
@@ -150,7 +150,7 @@
 
     function getThisReply(requestId) {
         $.ajax({
-            url: '/media/admin/getThisReply',
+            url: '/admin/getThisReply',
             type: 'POST',
             data: {
                 requestId: requestId

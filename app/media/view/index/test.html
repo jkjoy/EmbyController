@@ -96,7 +96,7 @@
     <!-- 导航栏 -->
     <nav class="fixed top-0 z-50 w-full px-4 md:px-6 py-4">
         <div class="glass-effect rounded-full mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center justify-between">
-            <a href="/media" class="text-xl md:text-2xl font-bold">影视管理站-算艺轩</a>
+            <a href="/" class="text-xl md:text-2xl font-bold">影视管理站-算艺轩</a>
 
             <!-- 移动端菜单按钮 -->
             <button id="menuButton" class="md:hidden p-2 glass-effect rounded-full">
@@ -129,21 +129,21 @@
                     <span>站点日志</span>
                 </button>
                 {if isset(session('r_user')->id)}
-                <a href="/media/user/index" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                <a href="/user/index" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
                     <span>回到控制台</span>
                 </a>
                 {else}
-                <a href="/media/user/login" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                <a href="/user/login" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
                     <span>登录</span>
                 </a>
 
-                <a href="/media/user/register" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                <a href="/user/register" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
@@ -204,20 +204,20 @@
                     </button>
 
                     {if isset(session('r_user')->id)}
-                    <a href="/media/user/index" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                    <a href="/user/index" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                         </svg>
                         <span>回到控制台</span>
                     </a>
                     {else}
-                    <a href="/media/user/login" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                    <a href="/user/login" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                         </svg>
                         <span>登录</span>
                     </a>
-                    <a href="/media/user/register" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
+                    <a href="/user/register" class="flex items-center space-x-2 hover:text-white/80 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
@@ -282,7 +282,7 @@
                         由RandallAnjie.com提供技术支持，为您带来优质的影视及管理服务。多条线路保障，稳定可靠的观影体验。
                     </p>
                     {if isset(session('r_user')->id)}
-                    <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/media/user/index'">
+                    <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/user/index'">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -290,7 +290,7 @@
                         <span>回到控制台</span>
                     </button>
                     {else}
-                    <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/media/user/login'">
+                    <button class="glass-effect w-full md:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full flex items-center justify-center space-x-2 hover:bg-white/20 transition-all duration-300" onclick="window.location.href='/user/login'">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -346,14 +346,14 @@
                 {volist name="latestMediaComment" id="latestMediaComment"}
                 <!--                判断是否登录-->
                 {if isset(session('r_user')->id)}
-                <div class="glass-effect rounded-lg p-4" onclick="window.location.href='/media/user/commentDetail?id={$latestMediaComment['mediaMainId']}'">
+                <div class="glass-effect rounded-lg p-4" onclick="window.location.href='/user/commentDetail?id={$latestMediaComment['mediaMainId']}'">
                     {else}
-                    <div class="glass-effect rounded-lg p-4" onclick="window.location.href='/media/user/login'">
+                    <div class="glass-effect rounded-lg p-4" onclick="window.location.href='/user/login'">
                         {/if}
                         <div class="flex items
                     <div class="flex gap-4">
                         <div class="w-24 h-36 flex-shrink-0">
-                            <img src="/media/index/getPrimaryImg?id={$latestMediaComment['mediaMainId']}" class="w-full h-full object-cover rounded-lg" />
+                            <img src="/index/getPrimaryImg?id={$latestMediaComment['mediaMainId']}" class="w-full h-full object-cover rounded-lg" />
                         </div>
                         <div class="flex-1 ml-2 min-w-0">
                             <div class="flex justify-between items-start">
@@ -376,7 +376,7 @@
             </div>
 
             <div class="mt-8 text-center">
-                <a href="/media/user/comment" class="inline-flex items-center space-x-2 glass-effect px-6 py-3 rounded-full hover:bg-white/20 transition-colors">
+                <a href="/user/comment" class="inline-flex items-center space-x-2 glass-effect px-6 py-3 rounded-full hover:bg-white/20 transition-colors">
                     <span>查看更多评价</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -557,16 +557,16 @@
     document.addEventListener('DOMContentLoaded', function() {
 
         $.ajax({
-            url: '/media/index/getLatestMedia',
+            url: '/index/getLatestMedia',
             type: 'POST',
             success: function (data) {
                 var inner = "";
                 if (data.code === 200) {
                     const mediaList = data.latestMedia;
                     mediaList.forEach((media, i) => {
-                        inner += `<div class="w-[180px] md:w-[200px] flex-none snap-start" onclick="window.location.href='/media/user/commentDetail?id=${media.Id}'">`;
+                        inner += `<div class="w-[180px] md:w-[200px] flex-none snap-start" onclick="window.location.href='/user/commentDetail?id=${media.Id}'">`;
                         inner += `<div class="relative aspect-[2/3] overflow-hidden rounded-lg">`;
-                        inner += `<img src="/media/index/getPrimaryImg?id=${media.Id}" alt="${media.Name}" class="w-full h-full object-cover rounded-lg zoom-img" loading="lazy"/>`;
+                        inner += `<img src="/index/getPrimaryImg?id=${media.Id}" alt="${media.Name}" class="w-full h-full object-cover rounded-lg zoom-img" loading="lazy"/>`;
                         inner += `<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>`;
                         inner += `<div class="absolute bottom-0 p-3 md:p-4 w-full">`;
                         inner += `<span class="text-xs uppercase tracking-wider text-white/80">`;
@@ -592,7 +592,7 @@
         });
 
         $.ajax({
-            url: '/media/index/getLineStatus',
+            url: '/index/getLineStatus',
             type: 'POST',
             success: function (data) {
                 var delayInner = "";

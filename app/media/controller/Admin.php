@@ -26,7 +26,7 @@ class Admin extends BaseController
         if ($user == null || $user['authority'] != 0) {
             $response = (Request::isJson() || Request::isAjax())
                 ? json(['code' => 400, 'message' => '无权访问'])
-                : redirect((string) url('/media/user/index'));
+                : redirect((string) url('/user/index'));
             throw new \think\exception\HttpResponseException($response);
         }
     }
@@ -34,7 +34,7 @@ class Admin extends BaseController
     public function index()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         return view();
     }
@@ -42,15 +42,15 @@ class Admin extends BaseController
     public function admin()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
-        return redirect((string) url('/media/admin/index'));
+        return redirect((string) url('/admin/index'));
     }
 
     public function request()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         $page = input('page', 1, 'intval');
         $pagesize = input('pagesize', 10, 'intval');
@@ -74,7 +74,7 @@ class Admin extends BaseController
     public function requestDetail()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         $data = Request::get();
         $requestModel = new RequestModel();
@@ -98,7 +98,7 @@ class Admin extends BaseController
     public function requestAddReply()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -146,7 +146,7 @@ class Admin extends BaseController
 //
 //                $Message = $data['content'];
 //                $Email = $user->email;
-//                $SiteUrl = Config::get('app.app_host').'/media';;
+//                $SiteUrl = Config::get('app.app_host').'/';;
 //
 //                $sysConfigModel = new SysConfigModel();
 //                $requestAlreadyReply = $sysConfigModel->where('key', 'requestAlreadyReply')->find();
@@ -180,7 +180,7 @@ class Admin extends BaseController
                 if ($sendFlag) {
                     $Message = $data['content'];
                     $Email = $user->email;
-                    $SiteUrl = Config::get('app.app_host').'/media';
+                    $SiteUrl = Config::get('app.app_host').'/';
 
                     $sysConfigModel = new SysConfigModel();
                     $requestAlreadyReply = $sysConfigModel->where('key', 'sysnotificiations')->find();
@@ -210,7 +210,7 @@ class Admin extends BaseController
     public function getThisReply()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -248,7 +248,7 @@ class Admin extends BaseController
     public function requestClose()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -283,7 +283,7 @@ class Admin extends BaseController
     public function requestLeave()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -318,7 +318,7 @@ class Admin extends BaseController
     public function requestReward()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -377,7 +377,7 @@ class Admin extends BaseController
     public function seek()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         return view();
     }
@@ -386,7 +386,7 @@ class Admin extends BaseController
     public function getSeekList()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         $data = Request::post();
         $page = $data['page'] ?? 1;
@@ -423,7 +423,7 @@ class Admin extends BaseController
     public function updateSeekStatus()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $data = Request::post();
@@ -720,7 +720,7 @@ class Admin extends BaseController
     public function lotteryList()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $page = input('page', 1);
@@ -772,7 +772,7 @@ class Admin extends BaseController
     public function addLottery()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         if (request()->isPost()) {
@@ -825,7 +825,7 @@ class Admin extends BaseController
     public function editLottery()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $id = input('id');
@@ -890,7 +890,7 @@ class Admin extends BaseController
 
         $lottery = $lotteryModel->find($id);
         if (!$lottery) {
-            return redirect((string) url('/media/admin/lotteryList'));
+            return redirect((string) url('/admin/lotteryList'));
         }
 
         return view('admin/lottery/edit', ['lottery' => $lottery]);
@@ -941,12 +941,12 @@ class Admin extends BaseController
     public function lotteryParticipants()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $id = input('id');
         if (empty($id)) {
-            return redirect((string) url('/media/admin/lotteryList'));
+            return redirect((string) url('/admin/lotteryList'));
         }
 
         $participantModel = new \app\api\model\LotteryParticipantModel();
@@ -961,7 +961,7 @@ class Admin extends BaseController
     public function setting()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         if (request()->isPost()) {
@@ -1021,7 +1021,7 @@ class Admin extends BaseController
     public function logs()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         // 获取runtime/log目录下的所有.log文件
@@ -1051,7 +1051,7 @@ class Admin extends BaseController
     public function viewLog()
     {
         if (session('r_user') == null || session('r_user')['authority'] != 0) {
-            return redirect((string) url('/media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $filename = input('filename');

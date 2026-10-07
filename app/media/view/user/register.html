@@ -54,7 +54,7 @@
         <div class="glass-effect rounded-2xl p-6 md:p-8">
             <div class="text-center mb-8">
                 {if config('app.site_logo')}
-                <a href="/media" class="inline-flex mb-4" aria-label="{:siteConfigText('app_name')}">
+                <a href="/" class="inline-flex mb-4" aria-label="{:siteConfigText('app_name')}">
                     <img src="{:siteConfigText('site_logo')}" alt="{:siteConfigText('app_name')}" class="h-12 w-12 object-contain" />
                 </a>
                 {/if}
@@ -62,7 +62,7 @@
                 <p class="text-white/60">加入{:siteConfigText('app_name')}，开启您的影视之旅</p>
             </div>
 
-            <form class="space-y-6" id="registerForm" action="{:url('media/user/register')}" method="post">
+            <form class="space-y-6" id="registerForm" action="{:url('/user/register')}" method="post">
                 <div class="space-y-2">
                     <label class="text-sm text-white/80">用户名</label>
                     <div class="relative">
@@ -222,7 +222,7 @@
                     email: emailInput.value,
                     action: 'register'
                 };
-                $.post('/media/user/sendVerifyCode', data, function (res) {
+                $.post('/user/sendVerifyCode', data, function (res) {
                     if (res.code === 200) {
                         rStatusMessage.success('验证码发送成功');
                         startCountdown();
@@ -256,7 +256,7 @@
         }, 10);
 
         // 根据类型加载不同的内容
-        fetch(`/media/user/${type}?ajax=1`)
+        fetch(`/user/${type}?ajax=1`)
             .then(response => response.text())
             .then(html => {
                 modalTitle.textContent = type === 'terms' ? '服务条款' : '隐私政策';

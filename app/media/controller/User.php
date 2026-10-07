@@ -34,7 +34,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         // 获取emby用户信息
@@ -105,7 +105,7 @@ class User extends BaseController
     {
         // 已登录自动跳转
         if (Session::has('r_user')) {
-            return redirect((string) url('media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         // 初始返回参数
         $results = '';
@@ -154,7 +154,7 @@ class User extends BaseController
                         // 跳转到之前访问的页面或默认页面
                         $jumpUrl = Session::get('jump_url');
                         if (empty($jumpUrl)) {
-                            $jumpUrl = (string)url('media/user/index');
+                            $jumpUrl = (string)url('/user/index');
                         } else {
                             Session::delete('jump_url');
                         }
@@ -190,7 +190,7 @@ class User extends BaseController
     {
         // 已登录自动跳转
         if (Session::has('r_user')) {
-            return redirect((string) url('media/user/index'));
+            return redirect((string) url('/user/index'));
         }
 
         $sysConfigModel = new SysConfigModel();
@@ -262,7 +262,7 @@ class User extends BaseController
                                 // 跳转到之前访问的页面或默认页面
                                 $jumpUrl = Session::get('jump_url');
                                 if (empty($jumpUrl)) {
-                                    $jumpUrl = (string)url('media/user/index');
+                                    $jumpUrl = (string)url('/user/index');
                                 } else {
                                     Session::delete('jump_url');
                                 }
@@ -370,7 +370,7 @@ class User extends BaseController
             trace('用户资料已更新，但验证码或会话清理失败', 'warning');
         }
         return json(['code' => 200, 'message' => $passwordChanged ? '密码已修改，请重新登录' : '更新成功',
-            'requireLogin' => $passwordChanged, 'redirectUrl' => $passwordChanged ? '/media/user/login' : null]);
+            'requireLogin' => $passwordChanged, 'redirectUrl' => $passwordChanged ? '/user/login' : null]);
     }
 
     private function profileUser(bool $lock = false): UserModel
@@ -435,10 +435,10 @@ class User extends BaseController
     {
         // 已登录自动跳转
         if (Session::has('r_user')) {
-            return redirect((string) url('media/user/index'));
+            return redirect((string) url('/user/index'));
         }
         if (!Config::get('mailer.enable')) {
-            return redirect((string) url('media/user/login'));
+            return redirect((string) url('/user/login'));
         }
 
         $results = '';
@@ -474,9 +474,9 @@ class User extends BaseController
                         $code = rand(100000, 999999);
                         Cache::set('verifyCode_forgot_' . $user->email, $code, 300);
 
-                        $Url = (Config::get('app.app_host')??Request::domain()) . '/media/user/forgot?email=' . $user->email . '&code=' . $code;
+                        $Url = (Config::get('app.app_host')??Request::domain()) . '/user/forgot?email=' . $user->email . '&code=' . $code;
                         $Email = $user->email;
-                        $SiteUrl = (Config::get('app.app_host')??Request::domain()) . '/media';
+                        $SiteUrl = (Config::get('app.app_host')??Request::domain()) . '/';
 
                         $sysConfigModel = new SysConfigModel();
                         $findPasswordTemplate = $sysConfigModel->where('key', 'findPasswordTemplate')->find();
@@ -557,7 +557,7 @@ class User extends BaseController
         Session::delete('r_user');
         Session::delete('m_embyId');
         Session::delete('wskey');
-        return redirect('/media/index/index');
+        return redirect('/');
     }
 
     public function userconfig()
@@ -565,7 +565,7 @@ class User extends BaseController
         try {
             $user = $this->profileUser();
         } catch (\DomainException $e) {
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         // 仅渲染副本隐藏哈希，不修改Session里用于识别旧登录状态的用户数据。
         $user->password = '';
@@ -629,7 +629,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         $page = input('page', 1, 'intval');
         $pagesize = input('pagesize', 10, 'intval');
@@ -653,7 +653,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isGet()) {
             return view();
@@ -691,14 +691,14 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         $data = Request::get();
         $requestModel = new RequestModel();
         $request = $requestModel->where('id', $data['id'])->find();
 
         if (!$request || $request->requestUserId != Session::get('r_user')->id) {
-            return redirect('/media/user/request');
+            return redirect('/user/request');
         }
 
         $request['message'] = json_decode($request['message'], true);
@@ -711,7 +711,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -755,7 +755,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -788,7 +788,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -834,7 +834,7 @@ class User extends BaseController
             $template = (new SysConfigModel())->where('key', 'verifyCodeTemplate')->value('value') ?? '您的验证码是：{Code}';
             $template = str_replace(['{Code}', '{Email}', '{SiteUrl}'], [$code,
                 htmlspecialchars($email, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
-                htmlspecialchars((string) Config::get('app.app_host') . '/media', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')], $template);
+                htmlspecialchars((string) Config::get('app.app_host') . '/', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')], $template);
             try {
                 $queued = \think\facade\Queue::push('app\api\job\SendMailMessage', [
                     'to' => $email, 'subject' => '【' . $code . '】' . Config::get('app.app_name') . '验证码',
@@ -863,7 +863,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         if (Request::isPost()) {
@@ -965,7 +965,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $telegramModel = new TelegramModel();
@@ -984,7 +984,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $telegramModel = new TelegramModel();
@@ -1005,7 +1005,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1032,7 +1032,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1059,7 +1059,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         View::assign('seek', true);
         return view();
@@ -1070,7 +1070,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isGet()) {
             $page = input('page', 1, 'intval');
@@ -1111,7 +1111,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1183,7 +1183,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1229,7 +1229,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isGet()) {
             $mediaId = input('id', 0, 'intval');
@@ -1244,7 +1244,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         if (Request::isPost()) {
             $data = Request::post();
@@ -1324,7 +1324,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
 
@@ -1350,7 +1350,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
 
         if (Request::isGet()) {
@@ -1775,7 +1775,7 @@ class User extends BaseController
         if (Session::get('r_user') == null) {
             $url = Request::url(true);
             Session::set('jump_url', $url);
-            return redirect('/media/user/login');
+            return redirect('/user/login');
         }
         
         $id = Request::param('id');
@@ -1783,7 +1783,7 @@ class User extends BaseController
         $seek = $seekModel->where('id', $id)->find();
         
         if (!$seek) {
-            return redirect('/media/user/seek');
+            return redirect('/user/seek');
         }
         
         View::assign('seek', $seek);
@@ -2082,7 +2082,7 @@ class User extends BaseController
             }
             return view();
         }
-        return redirect('/media/user/login');
+        return redirect('/user/login');
     }
 
     /**
@@ -2102,6 +2102,6 @@ class User extends BaseController
             }
             return view();
         }
-        return redirect('/media/user/login');
+        return redirect('/user/login');
     }
 }

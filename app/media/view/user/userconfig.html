@@ -309,7 +309,7 @@
             verificationSending = true;
             refreshProfileControls();
             setProfileStatus('正在发送验证码...');
-            $.post('/media/user/sendVerifyCode', {
+            $.post('/user/sendVerifyCode', {
                 action: 'update',
                 email: targetEmail,
                 currentPassword: currentPasswordInput.value,
@@ -394,7 +394,7 @@
         profileSaveBtn.textContent = '保存中...';
         refreshProfileControls();
         setProfileStatus('正在保存个人信息...');
-        $.post('/media/user/update', formData, function(res) {
+        $.post('/user/update', formData, function(res) {
             if (res.code === 200) {
                 setProfileStatus(res.message || '更新成功');
                 rStatusMessage.success(escapeHtmlText(res.message || '更新成功'));
@@ -419,7 +419,7 @@
 
     // 解绑Telegram
     function unbindTelegram() {
-        $.post('/media/user/tgUnbind', function (res) {
+        $.post('/user/tgUnbind', function (res) {
             if(res.code == 200){
                 rStatusMessage.success('解绑成功');
                 location.reload();
@@ -432,7 +432,7 @@
     function getBind(){
         $('#get-bind-code').text('获取中...');
         $('#get-bind-code').attr('disabled', 'disabled');
-        $.post('/media/user/getTGBindCode', function (res) {
+        $.post('/user/getTGBindCode', function (res) {
             if(res.code == 200){
                 $('#get-bind-code').text('重新获取绑定码');
                 rStatusMessage.success('获取绑定码成功，请根据操作进行绑定');
@@ -452,7 +452,7 @@
     {if condition="$enableEmail"}
     document.getElementById('email-notificiation').addEventListener('change', function() {
         $('input[name=email-notificiation]').attr('disabled', 'disabled');
-        $.post('/media/user/setEmailNotification', {
+        $.post('/user/setEmailNotification', {
             emailNotification: this.checked?1:0
         }, function (res) {
             if (res.code === 200) {
@@ -467,7 +467,7 @@
     {if $tgUser}
     document.getElementById('tg-notification').addEventListener('change', function() {
         $('input[name=tg-notification]').attr('disabled', 'disabled');
-        $.post('/media/user/setTGNotification', {
+        $.post('/user/setTGNotification', {
             tgNotification: this.checked?1:0
         }, function (res) {
             if (res.code === 200) {

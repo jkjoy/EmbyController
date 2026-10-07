@@ -6,7 +6,7 @@
                     class="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-lg transition-colors">
                 开启实时监控
             </button>
-            <a href="{:url('admin/logs')}" 
+            <a href="{:url('/admin/logs')}"
                class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors">
                 返回列表
             </a>
@@ -33,7 +33,7 @@ function updateLog() {
     if (!tailing) return;
     
     $.ajax({
-        url: '{:url("admin/tailf")}',
+        url: '{:url("/admin/tailf")}',
         data: {
             filename: '{$filename}',
             position: lastPosition

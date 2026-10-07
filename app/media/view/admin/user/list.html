@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-2xl font-bold">用户管理</h1>
-        <a href="{:url('admin/addUser')}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
+        <a href="{:url('/admin/addUser')}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
             添加用户
         </a>
     </div>
@@ -56,7 +56,7 @@
                     <td class="py-3 px-4">{$user.telegramId}</td>
                     <td class="py-3 px-4">{$user.createdAt}</td>
                     <td class="py-3 px-4 space-x-2">
-                        <a href="{:url('admin/editUser', ['id'=>$user.id])}"
+                        <a href="{:url('/admin/editUser', ['id'=>$user.id])}"
                            class="text-blue-400 hover:text-blue-300">编辑</a>
                         {if $user.authority != 0}
                         <a href="javascript:void(0);"
@@ -137,7 +137,7 @@
         showConfirmModal(
             status ? '确定要禁用该用户吗？' : '确定要启用该用户吗？',
             function() {
-                $.post("{:url('admin/changeStatus')}", {
+                $.post("{:url('/admin/changeStatus')}", {
                     id: id,
                     status: status
                 }, function(res) {
@@ -227,7 +227,7 @@
         $('#searchForm').submit(function(e) {
             e.preventDefault();
             const keyword = $('input[name="keyword"]').val();
-            window.location.href = "{:url('admin/userList')}?page=1&keyword=" + encodeURIComponent(keyword);
+            window.location.href = "{:url('/admin/userList')}?page=1&keyword=" + encodeURIComponent(keyword);
         });
     });
 </script> 

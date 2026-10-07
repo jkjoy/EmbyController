@@ -156,7 +156,7 @@ EXPOSE 8018
 
 # 检查真实 HTTP 登录页面，覆盖 Caddy 和 PHP-FPM。
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD wget -q -O /dev/null http://127.0.0.1:8018/media/user/login
+    CMD wget -q -O /dev/null http://127.0.0.1:8018/user/login
 
 # 启动命令
 # 覆盖 PHP-FPM 基镜像的 SIGQUIT，由启动脚本统一停止全部服务。
