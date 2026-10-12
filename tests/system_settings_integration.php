@@ -142,7 +142,9 @@ try {
         'siteName' => 'Integration Site', 'siteSubtitle' => '', 'appHost' => 'https://settings.example.com',
         'embyUrlBase' => 'http://emby.example.com:8096/emby/', 'embyApiKey' => $secret,
         'embyLineList' => '[{"name":"直接访问","url":"https://emby.example.com"}]',
-        'payMethods' => '["alipay"]', 'xfyunList' => json_encode(['test' => ['appid' => 'test-app', 'apikey' => $xfyunSecret, 'apisecret' => 'test-signature']]),
+        'payAlipayEnabled' => '1', 'payAlipayConfig' => json_encode(['app_id' => 'fixture-app', 'seller_id' => 'fixture-seller',
+            'app_secret_cert' => $secret, 'app_public_cert_path' => '/fixture/app.crt',
+            'alipay_public_cert_path' => '/fixture/alipay.crt', 'alipay_root_cert_path' => '/fixture/root.crt']), 'xfyunList' => json_encode(['test' => ['appid' => 'test-app', 'apikey' => $xfyunSecret, 'apisecret' => 'test-signature']]),
         'appDebug' => '0', 'redisDb' => '8', 'clientList' => '["Emby"]', 'clientBlackList' => '[]',
         'telegramRules' => '[]', 'signInMinAmount' => '0', 'signInMaxAmount' => '1.5',
         'tgGroupUrl' => $groupUrl,
@@ -156,7 +158,7 @@ try {
     expect(!str_contains($html, $secret) && !str_contains($html, $xfyunSecret), 'Secret leaked in complete Admin GET response');
     [$formControls, $xpath] = controls($html);
     expect($formControls['embyApiKey'][0]->getAttribute('value') === '', 'Password was echoed');
-    expect($formControls['xfyunList'][0]->textContent === '', 'Secret JSON was echoed');
+    expect($formControls['payAlipayConfig'][0]->textContent === '' && $formControls['xfyunList'][0]->textContent === '', 'Secret JSON was echoed');
     expect(str_contains($formControls['embyLineList'][0]->textContent, '直接访问'), 'JSON form did not return saved value');
     expect($xpath->query('//*[@data-secret-status="embyApiKey" and contains(text(), "已配置")]')->length === 1, 'Secret state missing');
     echo "PASS: Admin POST persists typed settings and applies configuration; full HTML hides password and JSON secrets.\n";
@@ -183,13 +185,15 @@ try {
     }
     echo "PASS: Both homepage templates remove GitHub; Telegram links follow Admin configuration, escape attributes and hide when cleared.\n";
 
-    $response = postSettings($app, ['embyApiKey' => '', 'xfyunList' => '']);
+    $response = postSettings($app, ['embyApiKey' => '', 'xfyunList' => '', 'payAlipayConfig' => '']);
     expect($response['code'] === 200 && SystemSettings::get('embyApiKey') === $secret && SystemSettings::get('xfyunList')['test']['apikey'] === $xfyunSecret, 'Blank secrets were not preserved');
+    expect(SystemSettings::get('payAlipayConfig')['app_secret_cert'] === $secret, 'Blank payment credentials were not preserved');
     $before = SystemSettings::all(true);
     foreach ([
         ['siteName' => 'Must Not Save', 'embyLineList' => '{broken-json', 'embyApiKey' => 'Must Not Save Secret'],
         ['siteName' => 'Must Not Save', 'appHost' => 'javascript:alert(1)'],
         ['siteName' => 'Must Not Save', 'tgGroupUrl' => 'javascript:alert(1)'],
+        ['siteName' => 'Must Not Save', 'payWechatConfig' => '{"mch_secret_key":"short"}'],
         ['siteName' => 'Must Not Save', 'DB_PASS' => 'attempted-env-override'],
         ['siteName' => 'Must Not Save', 'signInMinAmount' => '3', 'signInMaxAmount' => '1'],
         ['siteName' => 'Must Not Save', 'clearSecrets' => 'bad-shape'],
@@ -215,8 +219,9 @@ try {
     echo "PASS: Database errors are generalized; complete page escapes saved HTML text.\n";
 
     $oldCrontabKey = SystemSettings::get('crontabKey');
-    $response = postSettings($app, ['embyApiKey' => 'ignored-on-clear', 'clearSecrets' => ['embyApiKey','xfyunList','crontabKey']]);
+    $response = postSettings($app, ['embyApiKey' => 'ignored-on-clear', 'clearSecrets' => ['embyApiKey','xfyunList','payAlipayConfig','crontabKey']]);
     expect($response['code'] === 200 && SystemSettings::get('embyApiKey') === '' && SystemSettings::get('xfyunList') === [], 'Secret clearing failed');
+    expect(SystemSettings::get('payAlipayConfig') === [] && \app\service\PaymentGateway::methods() === [], 'Clearing merchant credentials must disable payments');
     expect(SystemSettings::get('crontabKey') !== $oldCrontabKey && strlen(SystemSettings::get('crontabKey')) === 64, 'Crontab key clear did not reset');
     expect(SystemSettings::formData()['secretStates']['crontabKey'], 'Reset crontab key not configured');
     Session::set('r_user', ['id' => 2, 'authority' => 1]);

@@ -101,12 +101,10 @@ class SystemSettings
                 }
             }
         }
-        $lines = $payments = $xfyun = [];
+        $lines = $xfyun = [];
         foreach ($environment as $name => $value) {
             if (preg_match('/^EMBY_LINE_LIST_(\d+)_(NAME|URL)$/', $name, $match)) {
                 $lines[$match[1]][strtolower($match[2])] = $value;
-            } elseif (preg_match('/^AVAILABLE_PAYMENT_(\d+)$/', $name, $match)) {
-                $payments[$match[1]] = $value;
             } elseif (preg_match('/^XFYUNLIST_(.+)_(APPID|APIKEY|APISECRET)$/', $name, $match)) {
                 $xfyun[strtolower($match[1])][strtolower($match[2])] = $value;
             }
@@ -114,10 +112,6 @@ class SystemSettings
         if ($lines) {
             ksort($lines, SORT_NUMERIC);
             $candidates['embyLineList'] = array_values($lines);
-        }
-        if ($payments) {
-            ksort($payments, SORT_NUMERIC);
-            $candidates['payMethods'] = array_values($payments);
         }
         if ($xfyun) {
             $candidates['xfyunList'] = $xfyun;
@@ -217,6 +211,10 @@ class SystemSettings
             if (!is_array($value) || strlen(json_encode($value, JSON_THROW_ON_ERROR)) > 60000) {
                 $error('需要 JSON 数组或对象，且不超过 60000 字节');
             }
+            if (in_array($field['key'], ['payAlipayConfig', 'payWechatConfig'], true)) {
+                PaymentGateway::validateConfig($field['key'] === 'payAlipayConfig' ? 'alipay' : 'wxpay', $value);
+                return $value;
+            }
             if ($field['key'] !== 'xfyunList' && array_values($value) !== $value) {
                 $error('需要 JSON 数组');
             }
@@ -227,7 +225,7 @@ class SystemSettings
                     }
                 }
             }
-            if (in_array($field['key'], ['payMethods', 'clientList', 'clientBlackList'], true)) {
+            if (in_array($field['key'], ['clientList', 'clientBlackList'], true)) {
                 foreach ($value as $item) {
                     if (!is_string($item) || trim($item) === '') {
                         $error('数组项需要非空字符串');
@@ -301,7 +299,7 @@ class SystemSettings
         if ($field['key'] === 'tgWebhookSecret' && $value !== '' && !preg_match('/^[A-Za-z0-9_-]{1,256}$/', $value)) {
             $error('仅允许字母、数字、下划线和短横线，最长 256 位');
         }
-        if ($value !== '' && in_array($field['key'], ['payUrl', 'embyUrlBase'], true)) {
+        if ($value !== '' && $field['key'] === 'embyUrlBase') {
             $value = rtrim($value, '/') . '/';
         }
         return $value;
@@ -356,7 +354,6 @@ class SystemSettings
         $modules['telegram']['botConfig']['bots']['randallanjie_bot']['token'] = $values['tgBotToken'] ?: 'notgbot';
         $modules['mailer']['from']['name'] = $values['mailFromName'] ?: $values['siteName'];
         $modules['mailer']['enable'] = $values['mailHost'] !== '' && $values['mailUser'] !== '' && $values['mailPass'] !== '' && $values['mailFromEmail'] !== '';
-        $modules['payment']['epay']['enable'] = $values['payUrl'] !== '' && $values['payMerchantId'] !== '' && $values['payKey'] !== '' && $values['payMethods'] !== [];
         $modules['map']['enable'] = $values['tencentMapKey'] !== '' && $values['tencentMapSk'] !== '';
         $modules['queue'] = $app->config->get('queue', []);
         $modules['queue']['default'] = $values['cacheType'] === 'redis' ? 'redis' : 'sync';

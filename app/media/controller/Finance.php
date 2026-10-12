@@ -49,7 +49,7 @@ class Finance extends BaseController
 
         View::assign('rate', $rate);
 
-        View::assign('epay', Config::get('payment.epay'));
+        View::assign('paymentMethods', \app\service\PaymentGateway::methods());
         View::assign('userFromDatabase', $userFromDatabase);
         return view();
     }
@@ -83,8 +83,9 @@ class Finance extends BaseController
         }
         if (Request::isGet()) {
             $payRecordModel = new PayRecordModel();
-            $data = Request::param();
-            $payRecord = $payRecordModel->where('id', $data['id'])->find();
+            $id = Request::get('id');
+            if (!is_scalar($id) || !ctype_digit((string) $id)) return redirect('/finance/payRecord');
+            $payRecord = $payRecordModel->where('id', $id)->find();
             if ($payRecord == null) {
                 return redirect('/finance/payRecord');
             }
@@ -98,115 +99,22 @@ class Finance extends BaseController
 
     public function rePay()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/user/login');
-        }
-        if (Request::isPost()) {
-            $payRecordModel = new PayRecordModel();
-            $data = Request::param();
-            $payRecord = $payRecordModel->where('id', $data['id'])->find();
-            if ($payRecord == null) {
-                return json(['code' => 400, 'message' => '订单不存在']);
-            }
-            if ($payRecord['userId'] != Session::get('r_user')->id) {
-                return json(['code' => 400, 'message' => '订单不存在']);
-            }
-            if ($payRecord['type'] == 2) {
-                return json(['code' => 400, 'message' => '订单已支付']);
-            }
-
-            // 如果是订单5分钟内创建
-            if (time() - strtotime($payRecord['createdAt']) < 300) {
-                return json(['code' => 400, 'message' => '订单创建时间小于5分钟，请等待系统队列任务完成后再试']);
-            }
-
-            if (time() - strtotime($payRecord['createdAt']) > 10800) {
-                return json(['code' => 400, 'message' => '订单创建时间大于3小时，请重新发起支付']);
-            }
-
-            $url = Config::get('payment.epay.urlBase') . 'api.php?act=order&pid=' . Config::get('payment.epay.id') . '&key=' . Config::get('payment.epay.key') . '&out_trade_no=' . $payRecord['tradeNo'];
-            $respond = getHttpResponse($url);
-            $respond = json_decode($respond, true);
-            if ($respond['code'] == 1 && $respond['status'] == 1) {
-                $payRecord->type = 2;
-                $payRecord->save();
-
-                $userModel = new UserModel();
-                $user = $userModel->where('id', $payRecord['userId'])->find();
-                $user->rCoin = $user->rCoin + $payRecord['money']*2;
-                $user->save();
-
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $payRecord['userId'],
-                    'action' => 1,
-                    'count' => $payRecord['money'],
-                    'recordInfo' => [
-                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . currencyName() . ' + ' . $payRecord['money'] . '赠送' . currencyName(),
-                    ]
-                ]);
-
-                return json(['code' => 200, 'message' => '订单已支付']);
-            } else {
-                $payRecordInfoArray = json_decode(json_encode($payRecord['payRecordInfo']), true);
-                if (isset($payRecordInfoArray['payUrl'])) {
-                    return json(['code' => 200, 'message' => '订单未支付，请扫码支付', 'payUrl' => $payRecordInfoArray['payUrl']]);
-                } else {
-                    return json(['code' => 400, 'message' => '订单无法重新支付，请重新下单']);
-                }
-            }
-        }
+        return $this->paymentStatus(true);
     }
 
     public function checkPay()
     {
-        if (Session::get('r_user') == null) {
-            return json(['code' => 400, 'message' => '请先登录']);
-        }
+        return $this->paymentStatus(false);
+    }
 
-        if (Request::isPost()) {
-            $data = Request::post();
-            $payRecordModel = new PayRecordModel();
-            $payRecord = $payRecordModel->where('id', $data['id'])->find();
-            if ($payRecord == null) {
-                return json(['code' => 400, 'message' => '订单不存在']);
-            }
-            if ($payRecord['userId'] != Session::get('r_user')->id) {
-                return json(['code' => 400, 'message' => '订单不存在']);
-            }
-            if ($payRecord['type'] == 2) {
-                return json(['code' => 200, 'message' => '订单已支付']);
-            }
-
-            $url = Config::get('payment.epay.urlBase') . 'api.php?act=order&pid=' . Config::get('payment.epay.id') . '&key=' . Config::get('payment.epay.key') . '&out_trade_no=' . $payRecord['tradeNo'];
-            $respond = getHttpResponse($url);
-            $respond = json_decode($respond, true);
-            if ($respond['code'] == 1 && $respond['status'] == 1) {
-                $payRecord->type = 2;
-                $payRecord->save();
-
-                $userModel = new UserModel();
-                $user = $userModel->where('id', $payRecord['userId'])->find();
-                $user->rCoin = $user->rCoin + $payRecord['money']*2;
-                $user->save();
-
-                $financeRecordModel = new FinanceRecordModel();
-                $financeRecordModel->save([
-                    'userId' => $payRecord['userId'],
-                    'action' => 1,
-                    'count' => $payRecord['money'],
-                    'recordInfo' => [
-                        'message' => '订单(#' . $payRecord['tradeNo'] . ')用户手动补单支付成功，兑换成' . $payRecord['money'] . currencyName() . ' + ' . $payRecord['money'] . '赠送' . currencyName(),
-                    ]
-                ]);
-
-                return json(['code' => 200, 'message' => '订单已支付']);
-            } else {
-                return json(['code' => 400, 'message' => '订单未支付']);
-            }
-        }
+    private function paymentStatus(bool $repay)
+    {
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用 POST 请求'], 405);
+        $user = Session::get('r_user');
+        if (!$user) return json(['code' => 401, 'message' => '请先登录'], 401);
+        return json(\app\service\PaymentService::result(fn() => app(\app\service\PaymentService::class)->check(
+            (int) $user->id, Request::post('id'), $repay
+        )));
     }
 
     public function getRecordList()

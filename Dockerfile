@@ -146,7 +146,8 @@ RUN php-fpm -t \
     && su-exec www-data:www-data php tests/user_profile.php \
     && su-exec www-data:www-data php tests/signin.php \
     && su-exec www-data:www-data php tests/lottery.php \
-    && su-exec www-data:www-data php tests/lottery_admin.php
+    && su-exec www-data:www-data php tests/lottery_admin.php \
+    && su-exec www-data:www-data php tests/payments.php
 
 # 在最终镜像验证真实 HTTP、FastCGI 与同域 WebSocket；Python 仅用于构建测试。
 RUN apk add --no-cache --virtual .http-check python3 \

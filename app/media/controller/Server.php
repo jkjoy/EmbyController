@@ -8,7 +8,6 @@ use app\media\model\EmbyDeviceModel;
 use app\media\model\EmbyUserModel as EmbyUserModel;
 use app\service\ExchangeCodes;
 use app\media\model\FinanceRecordModel;
-use app\media\model\PayRecordModel;
 use app\media\model\SysConfigModel as SysConfigModel;
 use mailer\Mailer;
 use Symfony\Component\VarDumper\Cloner\Data;
@@ -921,238 +920,32 @@ class Server extends BaseController
     }
     public function resolvePayment()
     {
-        if (Request::isGet()) {
-            $rate = 1;
-            $key = Request::get('key');
-            $PayRecordModel = new PayRecordModel();
-            $payRecord = $PayRecordModel
-                ->where('payCompleteKey', $key)
-                ->find();
+        return json(['code' => 410, 'message' => '旧支付回调已停用'], 410);
+    }
 
-            if (!$payRecord) {
-                return json([
-                    'code' => 400,
-                    'message' => '支付失败'
-                ]);
-            }
-            // 已处理过的订单直接返回成功，保证回调幂等
-            if ($payRecord['type'] == 2) {
-                return "success";
-            }
-            if ($payRecord['type'] != 1) {
-                return json([
-                    'code' => 400,
-                    'message' => '支付失败'
-                ]);
-            }
-
-            // 向支付平台校验订单真实支付状态
-            $tradeNo = $payRecord['tradeNo'];
-            // api.php?act=order&pid={商户ID}&key={商户密钥}&out_trade_no={商户订单号}
-            $url = Config::get('payment.epay.urlBase') . 'api.php?act=order&pid=' . Config::get('payment.epay.id') . '&key=' . Config::get('payment.epay.key') . '&out_trade_no=' . $tradeNo;
-            $respond = json_decode(getHttpResponse($url), true);
-            if (!isset($respond['code']) || $respond['code'] != 1 || ($respond['status'] ?? 0) != 1) {
-                return json([
-                    'code' => 400,
-                    'message' => '支付失败'
-                ]);
-            }
-
-            $payRecordInfo = json_decode(json_encode($payRecord['payRecordInfo']), true);
-            $commodity = $payRecordInfo['commodity'];
-            $count = $payRecordInfo['count'];
-
-            if ($commodity == 'R币充值') {
-                $rateConfig = (new SysConfigModel())->where('key', 'chargeRate')->find();
-                if ($rateConfig) {
-                    $rate = $rateConfig['value'];
-                }
-                $increase = ceil($count * $rate * 100) / 100;
-
-                Db::startTrans();
-                try {
-                    // 原子占用订单（type 1->2），按受影响行数判断，防止并发/重试重复加币
-                    $claimed = (new PayRecordModel())
-                        ->where('payCompleteKey', $key)
-                        ->where('type', 1)
-                        ->update(['type' => 2]);
-                    if (!$claimed) {
-                        // 已被其他并发回调处理
-                        Db::rollback();
-                        return "success";
-                    }
-
-                    // 原子加币（与订单状态变更同事务，避免丢账）
-                    (new UserModel())->where('id', $payRecord['userId'])->inc('rCoin', $increase)->update();
-
-                    $financeRecordModel = new FinanceRecordModel();
-                    $financeRecordModel->save([
-                        'userId' => $payRecord['userId'],
-                        'action' => 1,
-                        'count' => $count,
-                        'recordInfo' => [
-                            'message' => '使用支付宝支付' . $count . '元充值' . $increase . currencyName() . ($rate!=1?'(其中包含限时优惠赠送' . ($increase-$count) . currencyName() . ')':'')
-                        ]
-                    ]);
-                    Db::commit();
-                } catch (\Exception $e) {
-                    Db::rollback();
-                    return json([
-                        'code' => 400,
-                        'message' => '处理失败'
-                    ]);
-                }
-
-                // 事务外：通知与邮件
-                $user = (new UserModel())->where('id', $payRecord['userId'])->find();
-                $rCoin = sprintf("%.2f", $user->rCoin);
-                sendTGMessage($payRecord['userId'], '您已经成功充值了 <strong>' . $count . '</strong> 元，获得 <strong>' . $increase . '</strong> ' . currencyNameHtml() . '，当前余额为 <strong>' . $rCoin . '</strong>');
-
-                $money = $payRecord['money'];
-                $mediaMaturityTemplate = '您的账单已经支付成功，您购买的商品为：' . currencyNameHtml() . '充值金额：¥ ' . $money . '感谢您的支持';
-
-                // 发送邮件
-                if ($user && $user['email']) {
-
-                    $sendFlag = true;
-
-                    if ($user['userInfo']) {
-                        $userInfo = json_decode(json_encode($user['userInfo']), true);
-                        if (isset($userInfo['banEmail']) && $userInfo['banEmail'] == 1) {
-                            $sendFlag = false;
-                        }
-                    }
-
-                    if ($sendFlag) {
-                        $Email = $user['email'];
-                        $SiteUrl = Config::get('app.app_host').'/';
-
-                        $sysConfigModel = new SysConfigModel();
-                        $sysnotificiations = $sysConfigModel->where('key', 'sysnotificiations')->find();
-                        if ($sysnotificiations) {
-                            $sysnotificiations = $sysnotificiations['value'];
-                        } else {
-                            $sysnotificiations = '您有一条新消息：{Message}';
-                        }
-
-                        $sysnotificiations = str_replace('{Message}', $mediaMaturityTemplate, $sysnotificiations);
-                        $sysnotificiations = str_replace('{Email}', $Email, $sysnotificiations);
-                        $sysnotificiations = str_replace('{SiteUrl}', $SiteUrl, $sysnotificiations);
-
-                        \think\facade\Queue::push('app\api\job\SendMailMessage', [
-                            'to' => $user['email'],
-                            'subject' => '账单支付成功 - ' . Config::get('app.app_name'),
-                            'content' => $sysnotificiations,
-                            'isHtml' => true
-                        ], 'main');
-                    }
-                }
-
-                return "success";
-            }
-
-            // 非R币充值商品：标记已处理，避免支付平台重复回调
-            (new PayRecordModel())->where('payCompleteKey', $key)->where('type', 1)->update(['type' => 2]);
-            return "success";
+    public function paymentNotify()
+    {
+        if (!Request::isPost()) return json(['code' => 'FAIL', 'message' => '请使用 POST 回调'], 405);
+        $method = Request::get('method');
+        if (!is_string($method) || !in_array($method, ['alipay', 'wxpay'], true)) return json(['code' => 'FAIL', 'message' => '无效的支付渠道'], 400);
+        try {
+            app(\app\service\PaymentService::class)->callback($method, request());
+            return app(\app\service\PaymentGateway::class)->success($method);
+        } catch (\Throwable $e) {
+            \think\facade\Log::error('支付回调验证或记账失败');
+            return json(['code' => 'FAIL', 'message' => '支付通知验证或记账失败'], 400);
         }
     }
 
     public function pay()
     {
-        if (Session::get('r_user') == null) {
-            $url = Request::url(true);
-            Session::set('jump_url', $url);
-            return redirect('/user/login');
-        }
-        if (Request::isPost()) {
-            $data = Request::post();
-            // 检测$data['money']是否为数字，并且最多有两位小数
-            if (!isset($data['money']) || !is_scalar($data['money']) || !preg_match('/^\d+(\.\d{1,2})?$/', (string) $data['money']) || $data['money'] <= 0) {
-                return json([
-                    'code' => 400,
-                    'message' => '请输入正确的金额'
-                ]);
-            }
-            $payMethod = $data['method'] ?? 'alipay';
-            $availablePayMethod = Config::get('payment.epay.availablePayment', []);
-            if (!Config::get('payment.epay.enable') || !is_string($payMethod)
-                || in_array($payMethod, ['usdt', 'trx'], true) || !in_array($payMethod, $availablePayMethod, true)) {
-                return json(['code' => 400, 'message' => '此支付方式尚未启用，请使用可用的充值或兑换方式']);
-            }
-            $tradeNo = time() . random_int(1000, 9999);
-            $payCompleteKey = generateRandomString();
-
-            $realIp = getRealIp();
-
-            $url = Config::get('payment.epay.urlBase') . 'mapi.php';
-            $sendData = [
-                'pid' => Config::get('payment.epay.id'),
-                'type' => $payMethod,
-                'out_trade_no' => $tradeNo,
-                'notify_url' => Config::get('app.app_host') . '/server/resolvePayment?key=' . $payCompleteKey,
-                'return_url' => Config::get('app.app_host') . '/server/account',
-                'name' => currencyName() . '充值',
-                'money' => $data['money'],
-                'clientip' => $realIp,
-                'sign' => '',
-                'sign_type' => 'MD5'
-            ];
-            $sendData['sign'] = getPaySign($sendData);
-            $respond = getHttpResponse($url, $sendData);
-
-            if ($respond == '' || (isset(json_decode($respond, true)['code']) && json_decode($respond, true)['code'] == -1)) {
-                return json([
-                    'code' => 400,
-                    'message' => json_decode($respond, true)['msg']??'请求支付二维码失败',
-                    'original' => $respond
-                ]);
-            } else {
-                $jsonRespond = json_decode($respond, true);
-                if ((isset($jsonRespond['code']) && $jsonRespond['code'] == -1) || (!isset($jsonRespond['code'])) ) {
-                    return json([
-                        'code' => 400,
-                        'message' => $jsonRespond['msg']??'请求支付二维码失败',
-                        'original' => $respond
-                    ]);
-                }
-            }
-
-            $respond = json_decode($respond, true);
-            if (isset($respond['qrcode']) || isset($respond['payurl'])) {
-                $payUrl = $respond['qrcode']??$respond['payurl'];
-            } else {
-                return json([
-                    'code' => 400,
-                    'message' => '请求支付二维码失败',
-                    'original' => $respond
-                ]);
-            }
-
-            $PayRecordModel = new PayRecordModel();
-            $PayRecordModel->save([
-                'payCompleteKey' => $payCompleteKey,
-                'type' => 1,
-                'userId' => Session::get('r_user')->id,
-                'tradeNo' => $tradeNo,
-                'name' => currencyName() . '充值',
-                'money' => $data['money'],
-                'clientip' => $realIp,
-                'payRecordInfo' => json_encode([
-                    'commodity' => 'R币充值',
-                    'unit' => 'money',
-                    'count' => $data['money'],
-                    'payUrl' => $payUrl,
-                    'payMethod' => $payMethod,
-                ])
-            ]);
-
-            return json([
-                'code' => 200,
-                'message' => '请求支付二维码成功，请扫码支付',
-                'qrcodeUrl' => $payUrl,
-                'method' => $payMethod
-            ]);
-        }
+        if (!Request::isPost()) return json(['code' => 405, 'message' => '请使用 POST 请求'], 405);
+        $user = Session::get('r_user');
+        if (!$user) return json(['code' => 401, 'message' => '请先登录'], 401);
+        $data = Request::post();
+        return json(\app\service\PaymentService::result(fn() => app(\app\service\PaymentService::class)->create(
+            (int) $user->id, $data['money'] ?? null, $data['method'] ?? null, getRealIp()
+        )));
     }
 
     public function getTmpUserProfile()

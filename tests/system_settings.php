@@ -78,7 +78,7 @@ ENV
     check(SystemSettings::all(true)['appHost'] === 'https://stored.example.com:8090', 'Stored legacy host must also generate root routes');
     SystemSettings::save(['appHost' => 'https://stored.example.com:8090/media/']);
     check(Db::name('config')->where('key', 'appHost')->value('value') === 'https://stored.example.com:8090', 'Saving a legacy host must remove its media prefix');
-    check($settings['embyLineList'][0]['name'] === 'First' && $settings['payMethods'] === ['alipay', 'wxpay'], 'Indexed legacy lists must be ordered');
+    check($settings['embyLineList'][0]['name'] === 'First' && !isset($settings['payMethods']) && $settings['payAlipayConfig'] === [], 'Indexed legacy lists must be ordered');
     check($settings['xfyunList']['primary']['apisecret'] === 'secret', 'Legacy nested credentials must import');
     check(strlen($settings['crontabKey']) === 64, 'Missing cron secret must be generated');
     $count = Db::name('config')->count();
@@ -120,7 +120,8 @@ ENV
         ['siteLogo' => '/\\external.example/icon.png'],
         ['embyUrlBase' => 'ftp://example.com'],
         ['mailFromEmail' => 'invalid'],
-        ['payMethods' => '{"not":"a list"}'],
+        ['payAlipayConfig' => '{"not":"a config"}'],
+        ['payWechatConfig' => '["bad"]'],
         ['embyLineList' => '[{"name":"bad","url":"javascript:alert(1)"}]'],
         ['tgWebhookSecret' => 'spaces invalid'],
         ['signInMinAmount' => '5', 'signInMaxAmount' => '2'],
@@ -138,7 +139,7 @@ ENV
     rejects(fn() => SystemSettings::save([], ['siteName']), 'Only secrets may be cleared');
 
     SystemSettings::apply($app, true);
-    check(!$app->isDebug() && !$app->config->get('mailer.enable') && !$app->config->get('payment.epay.enable') && !$app->config->get('map.enable'), 'Unconfigured optional integrations must be disabled');
+    check(!$app->isDebug() && !$app->config->get('mailer.enable') && !(count(\app\service\PaymentGateway::methods()) > 0) && !$app->config->get('map.enable'), 'Unconfigured optional integrations must be disabled');
     check($app->config->get('queue.default') === 'sync' && $app->config->get('telegram.botConfig.bots.randallanjie_bot.token') === 'notgbot', 'New installation must work without Redis/Telegram');
     // 仅创建文件/同步驱动，随后验证切换配置会丢弃已创建驱动；不会连接 Redis。
     $cacheDriver = $app->cache->store('file');
@@ -149,7 +150,9 @@ ENV
         'siteName' => 'Personalized', 'siteLogo' => '/assets/logo.png', 'siteFavicon' => 'https://example.com/icon.png',
         'cacheType' => 'redis', 'redisHost' => 'cache.example.com', 'redisPort' => 6380, 'redisDb' => 7, 'redisPass' => 'redis secret',
         'mailHost' => 'smtp.example.com', 'mailUser' => 'sender', 'mailPass' => 'mail secret', 'mailFromEmail' => 'sender@example.com',
-        'payUrl' => 'https://pay.example.com', 'payMerchantId' => 'merchant', 'payKey' => 'pay secret', 'payMethods' => '["alipay"]',
+        'appHost' => 'https://stored.example.com', 'payAlipayEnabled' => true,
+        'payAlipayConfig' => ['app_id' => 'test-app', 'seller_id' => 'test-seller', 'app_secret_cert' => 'pay secret',
+            'app_public_cert_path' => '/test/app.crt', 'alipay_public_cert_path' => '/test/alipay.crt', 'alipay_root_cert_path' => '/test/root.crt'],
         'tencentMapKey' => 'map key', 'tencentMapSk' => 'map secret', 'defaultLang' => 'en-us', 'appDebug' => '1',
         'embyLineList' => '[{"name":"Only","url":"https://only.example.com"}]', 'embyUrlBase' => 'http://emby:8096/emby',
         'moviepilotEnabled' => '1', 'moviepilotUrl' => 'http://moviepilot:3000',
@@ -160,13 +163,15 @@ ENV
     check($app->config->get('cache.stores.redis.select') === 7 && $app->config->get('queue.connections.redis.select') === 7, 'Both Redis connectors must use configured database');
     check($app->config->get('queue.default') === 'redis' && $app->config->get('queue.connections.redis.password') === 'redis secret', 'Queue must use DB Redis config');
     check($app->cache->store('file') !== $cacheDriver && $queue->connection('sync') !== $queueDriver, 'Existing drivers must be discarded when configuration changes');
-    check($app->config->get('mailer.enable') && $app->config->get('payment.epay.enable') && $app->config->get('map.enable'), 'Completed integration config must enable services');
-    check($app->config->get('media.urlBase') === 'http://emby:8096/emby/' && $app->config->get('payment.epay.urlBase') === 'https://pay.example.com/', 'API base addresses must support existing concatenation');
+    check($app->config->get('mailer.enable') && (count(\app\service\PaymentGateway::methods()) > 0) && $app->config->get('map.enable'), 'Completed integration config must enable services');
+    check($app->config->get('media.urlBase') === 'http://emby:8096/emby/' && $app->config->get('payment.alipay.config.app_id') === 'test-app', 'API base addresses must support existing concatenation');
     check(count($app->config->get('media.lineList')) === 1 && $app->config->get('media.lineList')[0]['name'] === 'Only', 'JSON lists must replace old lists');
-    SystemSettings::save(['cacheType' => 'file', 'defaultLang' => 'zh-cn', 'appDebug' => false], ['mailPass', 'payKey', 'tencentMapSk']);
+    check(!str_contains(json_encode(SystemSettings::formData()), 'pay secret'), 'Merchant credentials must never appear in form data');
+    SystemSettings::save(['cacheType' => 'file', 'defaultLang' => 'zh-cn', 'appDebug' => false], ['mailPass', 'payAlipayConfig', 'tencentMapSk']);
     SystemSettings::apply($app, true);
     check(!$app->isDebug() && $app->lang->defaultLangSet() === 'zh-cn' && $app->config->get('queue.default') === 'sync', 'Live config must revert when disabled');
-    check(!$app->config->get('mailer.enable') && !$app->config->get('payment.epay.enable') && !$app->config->get('map.enable'), 'Clearing required secrets must disable integrations');
+    check(!$app->config->get('mailer.enable') && !(count(\app\service\PaymentGateway::methods()) > 0) && !$app->config->get('map.enable'), 'Clearing required secrets must disable integrations');
+    rejects(fn() => SystemSettings::save(['payUrl' => 'https://old.example.com']), 'Retired payment settings must be rejected');
     // 兼容历史重复键，所有重复行同步为新值。
     Db::name('config')->insert(['key' => 'siteName', 'value' => 'Duplicate']);
     SystemSettings::save(['siteName' => 'Final Title']);

@@ -117,22 +117,6 @@ function generateRandomString($length = 16) {
     return bin2hex(random_bytes($length / 2));
 }
 
-function getPaySign($param){
-    ksort($param);
-    reset($param);
-    $signstr = '';
-
-    foreach($param as $k => $v){
-        if($k != "sign" && $k != "sign_type" && $v!=''){
-            $signstr .= $k.'='.$v.'&';
-        }
-    }
-    $signstr = substr($signstr,0,-1);
-    $signstr .= Config::get('payment.epay.key');
-    $sign = md5($signstr);
-    return $sign;
-}
-
 function getHttpResponse($url, $post = false, $timeout = 10){
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);

@@ -7,7 +7,7 @@
         (其中包含赠送的{$rate-1}{:currencyNameHtml()})
         {/if}
     </p>
-    <p class="text-sm text-gray-400">如遇到充值不到账情况，请前往账单记录进行查询，对存疑账单进行重新检测，如果确实付款但是系统无自动到账会自动给予补偿，如果出现问题请及时发送工单以及账单号，我们将第一时间为您处理</p>
+    <p class="text-sm text-gray-400">如遇到充值不到账情况，请前往账单记录进行查询，对存疑账单进行重新检测，已付款订单核验通过后会补记到账，如果出现问题请及时发送工单以及账单号，我们将第一时间为您处理</p>
 </div>
 
 <!-- 账户余额 -->
@@ -41,68 +41,22 @@
     <p id="redeem-code-result" class="text-sm text-green-400 mt-3" role="status" aria-live="polite"></p>
 </div>
 
-{if $epay['enable']}
-
-<!-- 余额充值 -->
-<div class="glass-effect rounded-lg p-6">
-    <h2 class="text-xl font-semibold mb-4">余额充值</h2>
+{if !empty($paymentMethods)}
+<div class="glass-effect rounded-lg p-6 mb-6">
+    <h2 class="text-xl font-semibold mb-4">在线充值</h2>
     <div class="space-y-4">
-        <input
-                type="number"
-                name="amount"
-                placeholder="请输入充值金额"
-                class="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:border-white/40"
-        >
-        <div class="flex gap-4">
-
-            {volist name="epay['availablePayment']" id="availablePayment"}
-
-            {if $availablePayment == 'alipay'}
-            <button
-                    class="w-full px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-                    onclick="pay('alipay')"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                使用支付宝支付
-            </button>
-            {elseif $availablePayment == 'wxpay'}
-            <button
-                    class="w-full px-6 py-3 rounded-lg bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
-                    onclick="pay('wxpay')"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                使用微信支付
-            </button>
-            {elseif $availablePayment == 'qqpay'}
-            <button
-                    class="w-full px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-                    onclick="pay('qqpay')"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                使用QQ支付
-            </button>
-            {else}
-            <button
-                    class="w-full px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-                    onclick="pay('{$availablePayment}')"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                使用{$availablePayment}支付
-            </button>
-            {/if}
-            {/volist}
+        <input type="number" name="amount" min="0.01" max="1000000" step="0.01" placeholder="请输入充值金额（元）"
+               class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:border-white/40">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {foreach $paymentMethods as $method => $label}
+            <button type="button" class="payment-button w-full px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
+                    onclick="pay('{$method}')">使用{$label}支付</button>
+            {/foreach}
         </div>
     </div>
 </div>
-
+{else/}
+<p class="text-sm text-gray-400 mb-6">在线支付暂未开放，可使用兑换码兑换余额。</p>
 {/if}
 
 <!-- 支付二维码弹窗 -->
@@ -123,6 +77,7 @@
 </div>
 
 
+<script src="/static/media/payment.js"></script>
 <script>
 
     function showPaymentQR() {
@@ -133,6 +88,7 @@
     function closePaymentQR() {
         const dialog = document.getElementById('qrDialog');
         dialog.classList.add('hidden');
+        PaymentUI.stopPolling();
         $('.pay-img-here').html('');
         $('#pay-header').text('请使用扫码支付');
         $('#pay-footer').text('请使用相应软件扫描二维码完成支付，支付完成后关闭弹窗刷新即可或前往账单记录查询');
@@ -172,55 +128,28 @@
     }
 
     function pay(paymentMethod) {
-        $.each($('button'), function (index, item) {
-            $(item).attr('disabled', 'disabled');
-        });
-        startMainLoading();
-        var moneyFromUser = $('input[name=amount]').val();
-        if ((!/^\d+(\.\d{1,2})?$/.test(moneyFromUser)) || moneyFromUser <= 0) {
-            $.each($('button'), function (index, item) {
-                $(item).removeAttr('disabled');
-            });
-            stopMainLoading();
-            rStatusMessage.error('请输入正确的金额');
-        } else {
-            $.post('/server/pay', {
-                money: moneyFromUser,
-                method: paymentMethod
-            }, function (data) {
-                if (data.code === 200) {
-                    rStatusMessage.success(escapeHtmlText(data.message));
-                    if (data.qrcodeUrl) {
-                        $('input[name=amount]').val('');
-                        if (data.qrcodeUrl.indexOf('qr.alipay.com') !== -1 && data.method === 'alipay') {
-                            $('#pay-header').text('请使用支付宝扫码支付');
-                            $('#pay-footer').text('请使用支付宝扫描二维码完成支付，支付完成后关闭弹窗刷新即可或前往账单记录查询');
-                            $('.pay-img-here').html('<img src="/api/common/getqrcode?data=' + data.qrcodeUrl + '" alt="支付二维码" class="w-full">');
-                            showPaymentQR();
-                            if (/(iPhone|iPad|iPod|iOS|Android)/i.test(navigator.userAgent)) {
-                                window.open("alipays://platformapi/startapp?appId=20000067&url=" + data.qrcodeUrl);
-                            }
-                        } else if (data.qrcodeUrl.indexOf('weixin') !== -1 && data.method === 'wxpay') {
-                            $('#pay-header').text('请使用微信扫码支付');
-                            $('#pay-footer').text('请使用微信扫描二维码完成支付，支付完成后关闭弹窗刷新即可或前往账单记录查询');
-                            $('.pay-img-here').html('<img src="/api/common/getqrcode?data=' + data.qrcodeUrl + '" alt="支付二维码" class="w-full">');
-                            showPaymentQR();
-                        } else {
-                            $('#pay-header').text('正在跳转到支付页面');
-                            $('#pay-footer').text('请使用对应支付方式完成支付，支付完成后关闭弹窗刷新即可或前往账单记录查询');
-                            $('.pay-img-here').html('<button onclick="window.open(\'' + data.qrcodeUrl + '\')" class="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors">前往支付</button>');
-                            showPaymentQR();
-                            window.open(data.qrcodeUrl);
-                        }
-                    }
-                } else {
-                    rStatusMessage.error(escapeHtmlText(data.message));
-                }
-                $.each($('button'), function (index, item) {
-                    $(item).removeAttr('disabled');
-                });
-                stopMainLoading();
-            });
+        const money = $('input[name=amount]').val();
+        if (!/^\d{1,7}(\.\d{1,2})?$/.test(money) || Number(money) <= 0 || Number(money) > 1000000) {
+            rStatusMessage.error('请输入正确的充值金额，最多两位小数');
+            return;
         }
+        $('.payment-button').prop('disabled', true);
+        startMainLoading();
+        $.post('/server/pay', {money: money, method: paymentMethod}, function (data) {
+            if (data.code !== 200) {
+                rStatusMessage.error(escapeHtmlText(data.message || '支付请求失败'));
+                return;
+            }
+            if (!PaymentUI.renderQRCode('.pay-img-here', data.qrcodeUrl, data.method)) return;
+            $('#pay-header').text(data.method === 'alipay' ? '请使用支付宝扫码支付' : '请使用微信扫码支付');
+            $('#pay-footer').text('支付完成后会自动核验到账，二维码 30 分钟内有效。');
+            showPaymentQR();
+            PaymentUI.startPolling(data.id);
+        }, 'json').fail(function () {
+            rStatusMessage.error('支付请求失败，请稍后重试；可在账单记录中检查订单状态');
+        }).always(function () {
+            $('.payment-button').prop('disabled', false);
+            stopMainLoading();
+        });
     }
 </script>

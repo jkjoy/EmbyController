@@ -57,10 +57,10 @@ class SettingsSchema
                 'tgWebhookSecret' => ['Webhook 校验密钥', 'secret', '', 'TG_BOT_WEBHOOK_SECRET', 'telegram.webhookSecret'],
             ],
             '支付' => [
-                'payUrl' => ['易支付地址', 'url', '', 'PAY_URL', 'payment.epay.urlBase'],
-                'payMerchantId' => ['商户 ID', 'text', '', 'PAY_MCHID', 'payment.epay.id'],
-                'payKey' => ['商户密钥', 'secret', '', 'PAY_KEY', 'payment.epay.key'],
-                'payMethods' => ['支付方式', 'json', [], null, 'payment.epay.availablePayment', ['help' => '["alipay","wxpay"]；未配置时关闭支付']],
+                'payAlipayEnabled' => ['启用支付宝扫码支付', 'bool', false, null, 'payment.alipay.enabled'],
+                'payAlipayConfig' => ['支付宝商户配置', 'json', [], null, 'payment.alipay.config', ['secret' => true, 'help' => 'JSON 对象：app_id、seller_id、app_secret_cert、app_public_cert_path、alipay_public_cert_path、alipay_root_cert_path。证书可填写 PEM 内容或容器内绝对路径；配置示例见 docs/payments.md。留空保留，勾选清除后停用']],
+                'payWechatEnabled' => ['启用微信 Native 支付', 'bool', false, null, 'payment.wechat.enabled'],
+                'payWechatConfig' => ['微信支付商户配置', 'json', [], null, 'payment.wechat.config', ['secret' => true, 'help' => 'JSON 对象：mch_id、mp_app_id、mch_secret_key、mch_secret_cert、mch_public_cert_path、wechat_public_cert_path（平台证书/公钥 ID 到 PEM 或路径的映射）。配置示例见 docs/payments.md。留空保留，勾选清除后停用']],
             ],
             'SOCKS5 代理' => [
                 'socks5Enable' => ['启用 SOCKS5 代理', 'bool', false, 'SOCKS5_ENABLE', 'proxy.socks5.enable'],

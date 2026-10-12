@@ -43,7 +43,9 @@
         "workerman/http-client": "^2.0",
         "workerman/channel": "^1.2",
         "cboden/ratchet": "^0.4.4",
-        "topthink/think-queue": "^3.0"
+        "topthink/think-queue": "^3.0",
+        "yansongda/pay": "~3.7.0",
+        "hyperf/pimple": "^2.2"
     },
     "require-dev": {
         "symfony/var-dumper": ">=4.2",
@@ -58,7 +60,8 @@
         }
     },
     "config": {
-        "preferred-install": "dist"
+        "preferred-install": "dist",
+        "platform": {"php": "8.3.0"}
     },
     "scripts": {
         "post-autoload-dump": [

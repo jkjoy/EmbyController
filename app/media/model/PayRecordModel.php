@@ -22,10 +22,14 @@ class PayRecordModel extends Model
         'money' => 'varchar',
         'clientip' => 'varchar',
         'payRecordInfo' => 'text',
+        'paymentGateway' => 'varchar',
+        'paymentMethod' => 'varchar',
+        'providerTransactionId' => 'varchar',
     ];
 
     // 设置JSON字段（如果有的话）
     protected $json = ['payRecordInfo'];
+    protected $jsonAssoc = true;
 
     // 自动写入时间戳字段
     protected $autoWriteTimestamp = 'timestamp'; // 自动写入时间戳

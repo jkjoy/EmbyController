@@ -114,7 +114,7 @@ def main():
             shutil.copyfile(file, root / "database/migrations" / file.name)
         (root / "vendor/autoload.php").write_text("<?php return require " + php_string((project / "vendor/autoload.php").as_posix()) + ";", encoding="utf-8")
         shutil.copyfile(project / "public/index.php", public / "index.php")
-        for asset in ["static/media/img/movie-img.jpeg", "static/index/img/logo-dark.png"]:
+        for asset in ["static/media/img/movie-img.jpeg", "static/index/img/logo-dark.png", "static/media/payment.js"]:
             (public / asset).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(project / "public" / asset, public / asset)
         # Framework autoload lives in the real project; explicitly isolate its root.
@@ -292,9 +292,17 @@ $app->session->save();
                 expect(b"/index/account/sign" not in body, "Robot page must submit to the new root URL")
             status, _, body = request("/account/sign?signkey=invalid")
             expect(status == 200 and "签到链接已失效".encode() in body, "Invalid robot links must show their own error page")
-            for path in ["/server/crontab?crontabkey=invalid", "/server/resolvePayment?key=invalid"]:
+            for path in ["/server/crontab?crontabkey=invalid"]:
                 status, _, body = request(path)
                 expect(status == 200 and json.loads(body)["code"] == 400, "Public callbacks must reach credential validation without login: " + path)
+            status, _, body = request("/server/resolvePayment?key=invalid")
+            expect(status == 410 and json.loads(body)["code"] == 410, "Legacy payment callback must be retired")
+            status, _, body = request("/server/paymentNotify?method=alipay")
+            expect(status == 405, "Official callback must accept POST without a login redirect")
+            for method in ["alipay", "wxpay"]:
+                status, _, body = request("/server/paymentNotify?method=" + method, "POST", "invalid", {"Content-Type": "application/json"})
+                expect(status == 400 and json.loads(body)["code"] == "FAIL", "Unsigned official callback must fail")
+            expect(request("/static/media/payment.js")[2] == (public / "static/media/payment.js").read_bytes(), "Payment UI asset must load from root")
             for path, asset in [("/index/getPrimaryImg?id=0", "static/media/img/movie-img.jpeg"), ("/api/common/getHeadImg?id=0", "static/index/img/logo-dark.png")]:
                 status, _, body = request(path)
                 expect(status == 200 and body == (public / asset).read_bytes(), "Root image endpoint must load its local fallback independently of working directory: " + path)
@@ -306,6 +314,9 @@ $app->session->save();
                 status, headers, _ = request(path)
                 expect(status in (301, 302) and "/user/login" in headers.get("Location", ""), "Unauthenticated admin route must redirect: " + path)
             for path, data in [
+                ("/server/pay", {"money": "1", "method": "alipay"}),
+                ("/finance/checkPay", {"id": "1"}),
+                ("/finance/rePay", {"id": "1"}),
                 ("/server/redeemCode", {"code": "MISSING"}),
                 ("/user/update", {}),
                 ("/user/sendVerifyCode", {"action": "update"}),

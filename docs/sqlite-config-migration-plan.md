@@ -140,7 +140,7 @@ SQLite 是整库文件锁,本项目并发写来自:Workerman 进程(`$ws->count 
 
 **可入库(接入 rc_config):**
 - Emby:`EMBY_URLBASE`/`EMBY_APIKEY`/`EMBY_ADMINUSERID`/`EMBY_TEMPLATEUSERID`/线路列表
-- 支付:`PAY_URL`/`PAY_MCHID`/`PAY_KEY`/`AVAILABLE_PAYMENT_*`
+- 支付：支付宝/微信商户 JSON 及渠道开关（旧易支付字段已停用，见 [支付说明](payments.md)）
 - Telegram:`TG_BOT_TOKEN`/`TG_BOT_USERNAME`/`TG_BOT_ADMIN_ID`/`TG_BOT_GROUP_*`/`TG_BOT_WEBHOOK_SECRET`
 - 邮件:`MAIL_*`
 - AI:`AI_*`/`GEMINI_API_KEY`/`XFYUNLIST_*`
@@ -154,7 +154,7 @@ SQLite 是整库文件锁,本项目并发写来自:Workerman 进程(`$ws->count 
 `rc_config` 字段:`appName / key / value / type / status`。
 - `appName`:按配置域归类(`media`/`payment`/`telegram`/`mail`/`ai`/`map`/`captcha`/`proxy`/`app`)。
 - `type`:**0=仅管理员可见**(敏感项如 token/key/password 用 0),1=登录可见,2=公开。已有字段,直接用于权限控制。
-- 复杂结构(线路列表、`AVAILABLE_PAYMENT`、`XFYUNLIST`)以 JSON 字符串存 `value`。
+- 复杂结构(线路列表、支付商户配置、`XFYUNLIST`)以 JSON 字符串存 `value`。
 
 ### 3.3 注入方案(路径 A,业务代码零改动)
 

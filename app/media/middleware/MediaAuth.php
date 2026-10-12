@@ -23,7 +23,8 @@ class MediaAuth
         $isRedeemRequest = preg_match('~\A/server/redeemCode(?:\.html)?/?\z~i', $path) === 1;
         $isProfileRequest = preg_match('~\A/user/update(?:\.html)?/?\z~i', $path) === 1
             || (preg_match('~\A/user/sendVerifyCode(?:\.html)?/?\z~i', $path) === 1 && $request->post('action') === 'update');
-        $requiresJsonAuth = $isRedeemRequest || $isProfileRequest;
+        $isPaymentRequest = preg_match('~\A/(?:server/pay|finance/(?:checkPay|rePay))(?:\.html)?/?\z~i', $path) === 1;
+        $requiresJsonAuth = $isRedeemRequest || $isProfileRequest || $isPaymentRequest;
         $authError = null;
         // 获取当前用户
         $user = Session::get('r_user');
@@ -73,6 +74,7 @@ class MediaAuth
             '/index/getLatestMedia',
             '/server/crontab',
             '/server/resolvePayment',
+            '/server/paymentNotify',
             '/account/sign',
             '/index/account/sign',
         ];

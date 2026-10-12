@@ -48,7 +48,7 @@
                 <span class="text-xl font-semibold">
                     <?php
                         $recordInfoArray = json_decode(json_encode($payRecord['payRecordInfo']), true);
-                        echo $recordInfoArray['commodity'];
+                        echo htmlspecialchars($recordInfoArray['commodity'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                     ?>
                 </span>
             </div>
@@ -72,7 +72,7 @@
                         } elseif ($recordInfoArray['payMethod'] == 'wxpay') {
                             echo '微信';
                         } else {
-                            echo $recordInfoArray['payMethod'];
+                            echo htmlspecialchars($recordInfoArray['payMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         }
                     } else {
                         echo '支付宝';
@@ -90,18 +90,20 @@
     {if $payRecord['type'] == 1}
     <div class="glass-effect rounded-lg p-4">
         <h2 class="text-lg font-semibold mb-4">操作</h2>
-        <div class="space-x-2 pay-img-here">
-            {if time() - strtotime($payRecord['createdAt']) > 300}
-            <a href="javascript:;" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors" onclick="payRecord({$payRecord['id']})">重新检测</a>
-            {/if}
-            {if time() - strtotime($payRecord['createdAt']) < 10800}
-            <a href="javascript:;" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors" onclick="rePay({$payRecord['id']})">重新支付</a>
-            {/if}
+        {if $payRecord['paymentGateway'] == 'yansongda/pay'}
+        <div class="space-x-2">
+            <button type="button" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="payRecord({$payRecord['id']})">重新检测</button>
+            <button type="button" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="rePay({$payRecord['id']})">显示支付二维码</button>
         </div>
+        <div class="pay-img-here mt-4"></div>
+        {else/}
+        <p class="text-gray-400">旧支付订单仅保留记录，请重新发起充值；已付款未到账请联系管理员核对。</p>
+        {/if}
     </div>
     {/if}
 </div>
 
+<script src="/static/media/payment.js"></script>
 <script>
     var onProcess = false;
     function payRecord(id) {
@@ -117,12 +119,12 @@
             },
             success: function (data) {
                 if (data.code === 200) {
-                    rStatusMessage.success(data.message);
+                    rStatusMessage.success(escapeHtmlText(data.message));
                     setTimeout(function () {
                         location.reload();
                     }, 1000);
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
                 if (data.action && data.action === 'reload') {
                     setTimeout(function () {
@@ -149,22 +151,14 @@
             },
             success: function (data) {
                 if (data.code === 200) {
-                    rStatusMessage.success(data.message);
-                    if (data.payUrl) {
-                        if (data.payUrl.indexOf('qr.alipay.com') !== -1) {
-                            $('.pay-img-here').html('<p>请使用支付宝扫码</p><img src="/api/common/getqrcode?data=' + data.payUrl + '" alt="支付二维码" style="width: 200px; height: 200px;">');
-                            if (/(iPhone|iPad|iPod|iOS|Android)/i.test(navigator.userAgent)) {
-                                window.open("alipays://platformapi/startapp?appId=20000067&url=" + data.qrcodeUrl);
-                            }
-                        } else if (data.payUrl.indexOf('weixin') !== -1) {
-                            $('.pay-img-here').html('<p>请使用微信扫码</p><img src="/api/common/getqrcode?data=' + data.payUrl + '" alt="支付二维码" style="width: 200px; height: 200px;">');
-                        } else {
-                            $('.pay-img-here').html('<p>正在跳转...</p>');
-                            window.open(data.payUrl);
-                        }
+                    rStatusMessage.success(escapeHtmlText(data.message));
+                    if (data.paid) {
+                        location.reload();
+                    } else if (data.payUrl && PaymentUI.renderQRCode('.pay-img-here', data.payUrl, data.method)) {
+                        PaymentUI.startPolling(id);
                     }
                 } else {
-                    rStatusMessage.error(data.message);
+                    rStatusMessage.error(escapeHtmlText(data.message));
                 }
             },
             complete: function () {
